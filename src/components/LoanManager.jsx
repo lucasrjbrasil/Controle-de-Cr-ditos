@@ -7,6 +7,7 @@ import { format, parseISO, startOfMonth, endOfMonth, isAfter, isBefore, isValid 
 import { calculateLoanEvolution } from '../utils/loanCalculator';
 import { bcbService } from '../services/bcbService';
 import LoanPaymentForm from './LoanPaymentForm';
+import LoanForm from './LoanForm';
 import LoanEvolutionTable from './LoanEvolutionTable';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';

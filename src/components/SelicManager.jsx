@@ -520,7 +520,9 @@ export default function SelicManager() {
                                 return (
                                     <tr key={rate.data || index} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${rate.isOverridden ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
                                         <td className="px-6 py-3 font-mono text-slate-600 dark:text-slate-300">
-                                            {rate.data}
+                                            {rate.data.includes('/') && rate.data.split('/').length === 3
+                                                ? rate.data.substring(3)
+                                                : rate.data}
                                         </td>
                                         <td className="px-6 py-3">
                                             {isEditing ? (

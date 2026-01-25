@@ -349,9 +349,18 @@ export const bcbService = {
     },
 
     removeOverride(date, overridesKey = OVERRIDES_KEY) {
+        const normalizedTarget = this._normalizeDate(date);
         const overrides = this._getOverrides(overridesKey);
-        if (overrides[date]) {
-            delete overrides[date];
+
+        let changed = false;
+        Object.keys(overrides).forEach(key => {
+            if (this._normalizeDate(key) === normalizedTarget) {
+                delete overrides[key];
+                changed = true;
+            }
+        });
+
+        if (changed) {
             localStorage.setItem(overridesKey, JSON.stringify(overrides));
         }
     },
