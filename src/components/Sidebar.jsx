@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Building2, FileText, TrendingUp, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { Building2, FileText, TrendingUp, DollarSign, Landmark, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 export default function Sidebar({ activeTab, setActiveTab, selicStatus }) {
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -8,12 +9,14 @@ export default function Sidebar({ activeTab, setActiveTab, selicStatus }) {
         { id: 'companies', label: 'Empresas', icon: Building2 },
         { id: 'credits', label: 'Créditos', icon: FileText },
         { id: 'perdcomps', label: 'PERDCOMPs', icon: TrendingUp },
+        { id: 'loans', label: 'Empréstimos', icon: Landmark },
         { id: 'selic', label: 'Selic Histórica', icon: DollarSign },
+        { id: 'exchange', label: 'Taxas Cambiais', icon: Globe },
     ];
 
     return (
         <div
-            className={`${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 relative`}
+            className={`${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 sticky top-0 relative`}
         >
             {/* Toggle Button */}
             <button
@@ -23,12 +26,12 @@ export default function Sidebar({ activeTab, setActiveTab, selicStatus }) {
                 {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
             </button>
 
-            <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} overflow-hidden whitespace-nowrap`}>
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex-shrink-0 flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">C</span>
+            <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} overflow-hidden whitespace-nowrap`}>
+                <div className="flex-shrink-0 flex items-center">
+                    <img src={logo} alt="IRKO Logo" className="w-8 h-8 object-contain" />
                 </div>
                 <h1 className={`text-base font-bold text-slate-800 dark:text-white transition-opacity duration-200 ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100'}`}>
-                    Controle de Créditos
+                    IRKO <span className="text-irko-orange">Créditos</span>
                 </h1>
             </div>
 

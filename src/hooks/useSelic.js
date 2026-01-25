@@ -44,23 +44,59 @@ export function useSelic() {
     }, []);
 
     const updateRate = (date, newValue, source = 'MANUAL') => {
+        const normalizedDate = bcbService._normalizeDate(date);
+
         // Ensure rates is array
         const currentRates = Array.isArray(rates) ? rates : [];
 
         // Check if exists
-        const exists = currentRates.some(r => r.data === date);
+        const exists = currentRates.some(r => r.data === normalizedDate);
 
         if (exists) {
             setRates(prev => (Array.isArray(prev) ? prev : []).map(r =>
-                r.data === date ? { ...r, valor: newValue, isOverridden: true, source } : r
+                r.data === normalizedDate ? { ...r, valor: newValue, isOverridden: true, source } : r
             ));
         } else {
             // Add new
-            setRates(prev => [...(Array.isArray(prev) ? prev : []), { data: date, valor: newValue, isOverridden: true, source }]);
+            setRates(prev => {
+                const updated = [...(Array.isArray(prev) ? prev : []), { data: normalizedDate, valor: newValue, isOverridden: true, source }];
+                // Sort by date
+                return updated.sort((a, b) => {
+                    const [da, ma, ya] = a.data.split('/').map(Number);
+                    const [db, mb, yb] = b.data.split('/').map(Number);
+                    return new Date(ya, ma - 1, da) - new Date(yb, mb - 1, db);
+                });
+            });
         }
 
         // Persist
-        bcbService.saveOverride(date, newValue, source);
+        bcbService.saveOverride(normalizedDate, newValue, source);
+    };
+
+    const batchUpdateRates = (updates) => {
+        setRates(prev => {
+            const currentRates = Array.isArray(prev) ? [...prev] : [];
+            const normalizedUpdates = updates.map(u => ({ ...u, date: bcbService._normalizeDate(u.date) }));
+
+            normalizedUpdates.forEach(update => {
+                const index = currentRates.findIndex(r => r.data === update.date);
+                if (index !== -1) {
+                    currentRates[index] = { ...currentRates[index], valor: update.value, isOverridden: true, source: update.source || 'BCB' };
+                } else {
+                    currentRates.push({ data: update.date, valor: update.value, isOverridden: true, source: update.source || 'BCB' });
+                }
+            });
+
+            // Sort by date
+            return [...currentRates].sort((a, b) => {
+                const [da, ma, ya] = a.data.split('/').map(Number);
+                const [db, mb, yb] = b.data.split('/').map(Number);
+                return new Date(ya, ma - 1, da) - new Date(yb, mb - 1, db);
+            });
+        });
+
+        // Persist (normalization inside bcbService will handle storage too)
+        bcbService.saveOverridesBatch(updates);
     };
 
     const removeRate = async (date) => {
@@ -86,5 +122,5 @@ export function useSelic() {
         }
     };
 
-    return { rates, loading, error, lastUpdated, isConnected, updateRate, removeRate };
+    return { rates, loading, error, lastUpdated, isConnected, updateRate, removeRate, batchUpdateRates };
 }

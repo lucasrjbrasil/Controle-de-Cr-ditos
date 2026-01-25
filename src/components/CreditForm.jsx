@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Plus, X, Save, AlertCircle } from 'lucide-react';
 import { useCredits } from '../context/CreditsContext';
+import { useCompanies } from '../context/CompanyContext';
 
 export default function CreditForm({ onClose, initialData = null }) {
     const { addCredit, updateCredit, credits } = useCredits();
+    const { companies } = useCompanies();
     const [formData, setFormData] = useState({
         empresa: initialData?.empresa || '',
         tipoCredito: initialData?.tipoCredito || 'Saldo Negativo IRPJ',
@@ -22,7 +24,6 @@ export default function CreditForm({ onClose, initialData = null }) {
 
     const generateIntegrityHash = (data) => {
         // Simple hash for duplication check: Empresa + PA + Codigo + Valor
-        // In a real app, use crypto.subtle.digest, but string concat is sufficient for client-side uniqueness constraint
         const raw = `${data.empresa.trim().toLowerCase()}-${data.periodoApuracao}-${data.codigoReceita.trim()}-${parseFloat(data.valorPrincipal).toFixed(2)}`;
         return btoa(raw); // Base64 check
     };
@@ -42,8 +43,7 @@ export default function CreditForm({ onClose, initialData = null }) {
                 const updatedCredit = {
                     ...formData,
                     valorPrincipal: parseFloat(formData.valorPrincipal),
-                    integrityHash: hash, // Hash might change if sensitive fields change
-                    // Preserve other fields that are not in form
+                    integrityHash: hash,
                     id: initialData.id,
                     createdAt: initialData.createdAt,
                     compensations: initialData.compensations
@@ -55,7 +55,7 @@ export default function CreditForm({ onClose, initialData = null }) {
                     ...formData,
                     valorPrincipal: parseFloat(formData.valorPrincipal),
                     integrityHash: hash,
-                    compensations: [] // Initialize empty compensations
+                    compensations: []
                 };
                 addCredit(newCredit);
             }
@@ -71,7 +71,7 @@ export default function CreditForm({ onClose, initialData = null }) {
                 <header className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <Plus size={20} className="text-blue-600" />
-                        Novo Crédito
+                        {initialData ? 'Editar Crédito' : 'Novo Crédito'}
                     </h3>
                     <button onClick={onClose} className="text-slate-500 hover:text-red-500 transition-colors">
                         <X size={20} />
@@ -88,16 +88,27 @@ export default function CreditForm({ onClose, initialData = null }) {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Empresa (CNPJ/Nome)</label>
-                            <input
-                                type="text"
+                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Empresa</label>
+                            <select
                                 name="empresa"
                                 value={formData.empresa}
                                 onChange={handleChange}
                                 className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-                                placeholder="Ex: 12.345.678/0001-90"
                                 required
-                            />
+                            >
+                                <option value="">Selecione uma empresa</option>
+                                {companies.map((company) => (
+                                    <option key={company.id} value={company.name}>
+                                        {company.name} ({company.cnpj})
+                                    </option>
+                                ))}
+                            </select>
+                            {companies.length === 0 && (
+                                <p className="text-xs text-amber-500 mt-1 flex items-center gap-1">
+                                    <AlertCircle size={12} />
+                                    Nenhuma empresa cadastrada. Vá até a aba Empresas.
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-2">

@@ -9,36 +9,39 @@ import EvolutionTable from './EvolutionTable';
 import { useSelic } from '../hooks/useSelic';
 import { calculateEvolution } from '../utils/calculationEngine';
 import ErrorBoundary from './ErrorBoundary';
+import { useColumnResize } from '../hooks/useColumnResize';
+import ResizableTh from './ui/ResizableTh';
 
 export default function CreditsManager() {
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const { columnWidths, handleResize, getColumnWidth } = useColumnResize({
+        id: 80,
+        empresa: 250,
+        periodo: 100,
+        codigo: 100,
+        tipo: 100,
+        valor: 150,
+        saldo: 150,
+        actions: 120
+    });
     const [expandedId, setExpandedId] = useState(null);
     const [editingCredit, setEditingCredit] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [competencyDate, setCompetencyDate] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
     const { credits, removeCredit } = useCredits();
     const { rates } = useSelic();
-    const { perdcomps } = usePerdcomp(); // Fetch perdcomps here too
-
-    // ... (filters logic same)
+    const { perdcomps } = usePerdcomp();
 
     // Helper to get balance
     const getBalanceAtCompetency = (credit) => {
         if (!competencyDate) return { value: 0, isFuture: false };
 
         try {
-            // Need to merge filtered PERDCOMPs into credit for calculation
             const creditPerdcomps = perdcomps.filter(p => p.creditId === credit.id);
-
-            // Group by month - simplified logic similar to EvolutionTable
-            // We can reuse the logic or just perform simplified map
             const monthlyCompensations = [];
             creditPerdcomps.forEach(p => {
                 const date = p.dataCriacao;
-                // Use parseCurrency logic or simpler if unavailable, but better safe
-                // Since we don't have parseCurrency imported inside the loop (it's in file), make sure we used it.
-                // We didn't import parseCurrency in Manager yet.
-                // But wait, the raw JSON might be string.
                 const valStr = p.valorCompensado;
                 const value = typeof valStr === 'number' ? valStr : Number(valStr.replace(/[^0-9,-]+/g, "").replace(",", "."));
 
@@ -48,7 +51,6 @@ export default function CreditsManager() {
             });
 
             const effectiveCredit = { ...credit, compensations: monthlyCompensations };
-
             const evolution = calculateEvolution(effectiveCredit, rates);
 
             const [year, month] = competencyDate.split('-');
@@ -59,10 +61,9 @@ export default function CreditsManager() {
 
             const firstRow = evolution[0];
             if (firstRow && competencyDate < firstRow.date.toISOString().slice(0, 7)) {
-                return { value: 0, isFuture: true }; // Not started yet, or should it be Principal? usually 0 if credit didn't exist.
+                return { value: 0, isFuture: true };
             }
 
-            // If future, return last known balance
             const lastRow = evolution[evolution.length - 1];
             if (lastRow) return { value: lastRow.saldoFinal, isFuture: false };
 
@@ -106,10 +107,16 @@ export default function CreditsManager() {
             );
         }
 
+        // Available Balance Filter
+        if (showOnlyAvailable) {
+            filtered = filtered.filter(credit => {
+                const balanceInfo = getBalanceAtCompetency(credit);
+                return balanceInfo.value > 0;
+            });
+        }
+
         return filtered;
-    }, [credits, searchTerm]);
-
-
+    }, [credits, searchTerm, showOnlyAvailable, competencyDate, perdcomps, rates]);
 
     const handleExport = () => {
         if (filteredCredits.length === 0) return;
@@ -162,7 +169,7 @@ export default function CreditsManager() {
             </div>
 
             {/* Total Balance Card */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div>
@@ -188,16 +195,35 @@ export default function CreditsManager() {
                     />
                 </div>
 
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                    <label className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        Competência:
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={showOnlyAvailable}
+                                onChange={(e) => setShowOnlyAvailable(e.target.checked)}
+                            />
+                            <div className="w-10 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </div>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap group-hover:text-blue-600 transition-colors">
+                            Somente com Saldo
+                        </span>
                     </label>
-                    <input
-                        type="month"
-                        className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                        value={competencyDate}
-                        onChange={(e) => setCompetencyDate(e.target.value)}
-                    />
+
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden md:block"></div>
+
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                            Competência:
+                        </label>
+                        <input
+                            type="month"
+                            className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                            value={competencyDate}
+                            onChange={(e) => setCompetencyDate(e.target.value)}
+                        />
+                    </div>
                 </div>
 
                 <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
@@ -222,14 +248,54 @@ export default function CreditsManager() {
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                 <tr>
-                                    <th className="px-6 py-4 font-semibold w-20">ID</th>
-                                    <th className="px-6 py-4 font-semibold">Empresa</th>
-                                    <th className="px-6 py-4 font-semibold">Período</th>
-                                    <th className="px-6 py-4 font-semibold">Código</th>
-                                    <th className="px-6 py-4 font-semibold">Tipo</th>
-                                    <th className="px-6 py-4 font-semibold text-right">Valor Original</th>
-                                    <th className="px-6 py-4 font-semibold text-right">Saldo em {competencyDate ? competencyDate.split('-').reverse().join('/') : 'Atualmente'}</th>
-                                    <th className="px-6 py-4 font-semibold text-center">Ações</th>
+                                    <ResizableTh
+                                        width={getColumnWidth('id')}
+                                        onResize={(w) => handleResize('id', w)}
+                                        className="px-6 py-4 font-semibold"
+                                    >ID</ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('empresa')}
+                                        onResize={(w) => handleResize('empresa', w)}
+                                        className="px-6 py-4 font-semibold"
+                                    >Empresa</ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('periodo')}
+                                        onResize={(w) => handleResize('periodo', w)}
+                                        className="px-6 py-4 font-semibold"
+                                    >Período</ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('codigo')}
+                                        onResize={(w) => handleResize('codigo', w)}
+                                        className="px-6 py-4 font-semibold"
+                                    >Código</ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('tipo')}
+                                        onResize={(w) => handleResize('tipo', w)}
+                                        className="px-6 py-4 font-semibold"
+                                    >Tipo</ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('valor')}
+                                        onResize={(w) => handleResize('valor', w)}
+                                        className="px-6 py-4 font-semibold text-right"
+                                    >
+                                        <div className="w-full text-right">Valor Original</div>
+                                    </ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('saldo')}
+                                        onResize={(w) => handleResize('saldo', w)}
+                                        className="px-6 py-4 font-semibold text-right"
+                                    >
+                                        <div className="w-full text-right">
+                                            Saldo em {competencyDate ? competencyDate.split('-').reverse().join('/') : 'Atualmente'}
+                                        </div>
+                                    </ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('actions')}
+                                        onResize={(w) => handleResize('actions', w)}
+                                        className="px-6 py-4 font-semibold text-center"
+                                    >
+                                        <div className="w-full text-center">Ações</div>
+                                    </ResizableTh>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">

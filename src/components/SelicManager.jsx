@@ -1,22 +1,39 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Save, History, RotateCcw, Plus, Pencil, Trash2, X, Check } from 'lucide-react';
 import { useSelic } from '../hooks/useSelic';
+import { useColumnResize } from '../hooks/useColumnResize';
+import ResizableTh from './ui/ResizableTh';
 
 export default function SelicManager() {
-    const { rates, updateRate, removeRate, loading, error } = useSelic();
+    const { rates, updateRate, removeRate, loading, error, batchUpdateRates } = useSelic();
     const [searchTerm, setSearchTerm] = useState('');
     const [editingDate, setEditingDate] = useState(null);
     const [editValue, setEditValue] = useState('');
+    const { columnWidths, handleResize, getColumnWidth } = useColumnResize({
+        data: 200,
+        taxa: 150,
+        status: 150,
+        actions: 120
+    });
 
     const filteredRates = useMemo(() => {
         if (!rates || !Array.isArray(rates)) return [];
 
         try {
-            // Helper to parse MM/YYYY to a sortable number (YYYYMM)
+            // Helper to parse dates to a sortable number (YYYYMM)
             const parseToDateValue = (dateStr) => {
                 if (!dateStr) return 0;
-                const [month, year] = dateStr.split('/');
-                return parseInt(year) * 100 + parseInt(month);
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                    // DD/MM/YYYY -> YYYYMM
+                    const [day, month, year] = parts;
+                    return parseInt(year) * 100 + parseInt(month);
+                } else if (parts.length === 2) {
+                    // MM/YYYY -> YYYYMM
+                    const [month, year] = parts;
+                    return parseInt(year) * 100 + parseInt(month);
+                }
+                return 0;
             };
 
             // 1. Sort by date descending
@@ -25,10 +42,21 @@ export default function SelicManager() {
             });
 
             // 2. Filter based on search term
-            return sorted.filter(r =>
-                (r?.data && r.data.includes(searchTerm)) ||
-                (r?.valor && r.valor.toString().includes(searchTerm))
-            );
+            return sorted.filter(r => {
+                const searchStr = searchTerm.toLowerCase();
+                const dateMatches = r?.data && r.data.includes(searchTerm);
+
+                let valMatches = false;
+                if (r?.valor) {
+                    if (typeof r.valor === 'object') {
+                        valMatches = String(r.valor.buy).includes(searchTerm) || String(r.valor.sell).includes(searchTerm);
+                    } else {
+                        valMatches = String(r.valor).includes(searchTerm);
+                    }
+                }
+
+                return dateMatches || valMatches;
+            });
         } catch (err) {
             console.error("Error filtering rates:", err);
             return [];
@@ -37,7 +65,8 @@ export default function SelicManager() {
 
     const startEditing = (rate) => {
         setEditingDate(rate.data);
-        setEditValue(rate.valor);
+        const val = rate.valor;
+        setEditValue(typeof val === 'object' && val !== null ? val.buy : val);
     };
 
     const cancelEditing = () => {
@@ -54,7 +83,8 @@ export default function SelicManager() {
     };
 
     const handleDelete = (date) => {
-        if (window.confirm(`Tem certeza que deseja excluir/restaurar a taxa de ${date}?`)) {
+        const displayDate = date.length === 10 ? date.substring(3) : date;
+        if (window.confirm(`Tem certeza que deseja excluir/restaurar a taxa de ${displayDate}?`)) {
             try {
                 removeRate(date);
                 // Note: useSelic triggers reload currently, so no need for extensive local state cleanup
@@ -156,6 +186,12 @@ export default function SelicManager() {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newRateData, setNewRateData] = useState({ date: '', value: '', source: 'MANUAL' });
 
+    // Batch Import State
+    const [isBatchOpen, setIsBatchOpen] = useState(false);
+    const [batchRange, setBatchRange] = useState({ start: '', end: '' });
+    const [isImporting, setIsImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState(0);
+
     const handleAddRate = (e) => {
         e.preventDefault();
         console.log("Attempting to add rate:", newRateData);
@@ -172,6 +208,79 @@ export default function SelicManager() {
             }
         } else {
             alert("Preencha todos os campos");
+        }
+    };
+
+    const handleBatchImport = async (e) => {
+        e.preventDefault();
+        if (!batchRange.start || !batchRange.end) {
+            alert("Preencha o intervalo (Início e Fim)");
+            return;
+        }
+
+        try {
+            setIsImporting(true);
+            setImportProgress(0);
+
+            const [startM, startY] = batchRange.start.split('/');
+            const [endM, endY] = batchRange.end.split('/');
+
+            if (!startM || !startY || !endM || !endY) {
+                throw new Error("Formato inválido. Use MM/AAAA");
+            }
+
+            const startDate = new Date(parseInt(startY), parseInt(startM) - 1, 1);
+            const endDate = new Date(parseInt(endY), parseInt(endM) - 1, 1);
+
+            if (startDate > endDate) {
+                throw new Error("A data de início deve ser anterior à data de fim");
+            }
+
+            const monthsToFetch = [];
+            let currentDate = new Date(startDate);
+            while (currentDate <= endDate) {
+                monthsToFetch.push({
+                    month: (currentDate.getMonth() + 1).toString().padStart(2, '0'),
+                    year: currentDate.getFullYear().toString()
+                });
+                currentDate.setMonth(currentDate.getMonth() + 1);
+            }
+
+            const { bcbService } = await import('../services/bcbService');
+            const updates = [];
+            let successes = 0;
+
+            for (let i = 0; i < monthsToFetch.length; i++) {
+                const { month, year } = monthsToFetch[i];
+                const dateKey = `${month}/${year}`;
+
+                try {
+                    const value = await bcbService.fetchRateForMonth(month, year);
+                    if (value) {
+                        updates.push({ date: dateKey, value, source: 'BCB' });
+                        successes++;
+                    }
+                } catch (err) {
+                    console.error(`Error fetching for ${dateKey}:`, err);
+                }
+
+                setImportProgress(Math.round(((i + 1) / monthsToFetch.length) * 100));
+            }
+
+            if (updates.length > 0) {
+                batchUpdateRates(updates);
+                alert(`Importação concluída! ${successes} taxas importadas.`);
+            } else {
+                alert("Nenhuma taxa encontrada para o período informado.");
+            }
+
+            setIsBatchOpen(false);
+            setBatchRange({ start: '', end: '' });
+        } catch (error) {
+            alert("Erro na importação: " + error.message);
+        } finally {
+            setIsImporting(false);
+            setImportProgress(0);
         }
     };
 
@@ -193,6 +302,13 @@ export default function SelicManager() {
 
                 {/* Search */}
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setIsBatchOpen(true)}
+                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg transition-all font-medium text-sm border border-slate-200 dark:border-slate-700"
+                    >
+                        <History size={18} />
+                        Importar Intervalo
+                    </button>
                     <button
                         onClick={() => setIsAddOpen(true)}
                         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg shadow-blue-500/20 transition-all font-medium text-sm"
@@ -291,15 +407,108 @@ export default function SelicManager() {
                 </div>
             )}
 
+            {/* Batch Import Modal */}
+            {isBatchOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Importar Intervalo (BCB)</h3>
+                        <form onSubmit={handleBatchImport} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Início (MM/AAAA)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="01/2024"
+                                        value={batchRange.start}
+                                        onChange={e => setBatchRange({ ...batchRange, start: e.target.value })}
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        required
+                                        disabled={isImporting}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Fim (MM/AAAA)</label>
+                                    <input
+                                        type="text"
+                                        placeholder="12/2024"
+                                        value={batchRange.end}
+                                        onChange={e => setBatchRange({ ...batchRange, end: e.target.value })}
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        required
+                                        disabled={isImporting}
+                                    />
+                                </div>
+                            </div>
+
+                            {isImporting && (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-xs font-medium text-slate-500">
+                                        <span>Processando...</span>
+                                        <span>{importProgress}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                        <div
+                                            className="bg-blue-600 h-full transition-all duration-300"
+                                            style={{ width: `${importProgress}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 text-center italic">
+                                        Buscando dados no servidor do Banco Central...
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBatchOpen(false)}
+                                    className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                    disabled={isImporting}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+                                    disabled={isImporting}
+                                >
+                                    {isImporting ? 'Importando...' : 'Iniciar Importação'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm h-[600px] flex flex-col">
                 <div className="overflow-y-auto flex-1">
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-6 py-4">Data (Mês/Ano)</th>
-                                <th className="px-6 py-4">Taxa (%)</th>
-                                <th className="px-6 py-4 text-center">Status</th>
-                                <th className="px-6 py-4 text-right">Ações</th>
+                                <ResizableTh
+                                    width={getColumnWidth('data')}
+                                    onResize={(w) => handleResize('data', w)}
+                                    className="px-6 py-4"
+                                >Data (Mês/Ano)</ResizableTh>
+                                <ResizableTh
+                                    width={getColumnWidth('taxa')}
+                                    onResize={(w) => handleResize('taxa', w)}
+                                    className="px-6 py-4"
+                                >Taxa (%)</ResizableTh>
+                                <ResizableTh
+                                    width={getColumnWidth('status')}
+                                    onResize={(w) => handleResize('status', w)}
+                                    className="px-6 py-4 text-center"
+                                >
+                                    <div className="w-full text-center">Status</div>
+                                </ResizableTh>
+                                <ResizableTh
+                                    width={getColumnWidth('actions')}
+                                    onResize={(w) => handleResize('actions', w)}
+                                    className="px-6 py-4 text-right"
+                                >
+                                    <div className="w-full text-right">Ações</div>
+                                </ResizableTh>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -328,7 +537,8 @@ export default function SelicManager() {
                                                 </div>
                                             ) : (
                                                 <span className="font-medium text-slate-700 dark:text-slate-300">
-                                                    {rate.valor}%
+                                                    {typeof rate.valor === 'object' && rate.valor !== null ? (rate.valor.buy || rate.valor.sell) : rate.valor}%
+
                                                 </span>
                                             )}
                                         </td>

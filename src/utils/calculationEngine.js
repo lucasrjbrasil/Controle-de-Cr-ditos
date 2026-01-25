@@ -50,7 +50,8 @@ export function calculateEvolution(credit, selicRates) {
             });
 
             if (rateObj) {
-                monthlyRate = parseFloat(rateObj.valor);
+                const val = rateObj.valor;
+                monthlyRate = typeof val === 'object' && val !== null ? parseFloat(val.buy || val.sell) : parseFloat(val);
             } else {
                 // If not found (e.g. current month not released yet), assume 0 or last known?
                 // Usually 0 until released.

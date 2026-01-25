@@ -8,6 +8,13 @@ import CreditsManager from './components/CreditsManager';
 import SelicManager from './components/SelicManager';
 import PerdcompManager from './components/PerdcompManager';
 import { PerdcompProvider } from './context/PerdcompContext';
+import { CompanyProvider } from './context/CompanyContext';
+import CompanyManager from './components/CompanyManager';
+import { LoanProvider } from './context/LoanContext';
+import LoanManager from './components/LoanManager';
+import ExchangeRateManager from './components/ExchangeRateManager';
+import ErrorBoundary from './components/ErrorBoundary';
+
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('credits');
@@ -22,6 +29,16 @@ function Dashboard() {
         return <SelicManager />;
       case 'perdcomps':
         return <PerdcompManager />;
+      case 'companies':
+        return <CompanyManager />;
+      case 'loans':
+        return (
+          <ErrorBoundary>
+            <LoanManager />
+          </ErrorBoundary>
+        );
+      case 'exchange':
+        return <ExchangeRateManager />;
       default:
         return (
           <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400">
@@ -39,7 +56,7 @@ function Dashboard() {
         selicStatus={{ isConnected, lastUpdated, loading }}
       />
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1">
         <header className="h-16 flex items-center justify-between px-8 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
           <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
             Olá, Usuário
@@ -53,7 +70,7 @@ function Dashboard() {
           </button>
         </header>
 
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-8 w-full">
           {renderContent()}
         </div>
       </main>
@@ -66,7 +83,11 @@ function App() {
     <ThemeProvider>
       <CreditsProvider>
         <PerdcompProvider>
-          <Dashboard />
+          <CompanyProvider>
+            <LoanProvider>
+              <Dashboard />
+            </LoanProvider>
+          </CompanyProvider>
         </PerdcompProvider>
       </CreditsProvider>
     </ThemeProvider>

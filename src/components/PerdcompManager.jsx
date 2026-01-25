@@ -2,12 +2,28 @@ import React, { useState, useMemo } from 'react';
 import { Plus, Search, Filter, Pencil, Trash2, FileText, AlertCircle, CheckCircle, Clock, Download } from 'lucide-react';
 import PerdcompForm from './PerdcompForm';
 import { usePerdcomp } from '../context/PerdcompContext';
+import { useColumnResize } from '../hooks/useColumnResize';
+import ResizableTh from './ui/ResizableTh';
 import { useCredits } from '../context/CreditsContext';
 import { formatCurrency } from '../utils/formatters';
 import { exportToExcel } from '../utils/exportUtils';
 
 export default function PerdcompManager() {
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const { columnWidths, handleResize, getColumnWidth } = useColumnResize({
+        numero: 100,
+        data: 80,
+        empresa: 120,
+        tipo: 80,
+        codigo: 60,
+        periodo: 80,
+        vencimento: 80,
+        principal: 90,
+        multa: 80,
+        juros: 80,
+        total: 100,
+        actions: 80
+    });
     const [editingItem, setEditingItem] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const { perdcomps, removePerdcomp } = usePerdcomp();
@@ -134,18 +150,18 @@ export default function PerdcompManager() {
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
                                 <tr>
-                                    <th className="px-3 py-3 font-semibold">Número</th>
-                                    <th className="px-3 py-3 font-semibold">Data</th>
-                                    <th className="px-3 py-3 font-semibold">Empresa</th>
-                                    <th className="px-3 py-3 font-semibold">Tipo</th>
-                                    <th className="px-3 py-3 font-semibold">Código</th>
-                                    <th className="px-3 py-3 font-semibold">Período</th>
-                                    <th className="px-3 py-3 font-semibold">Vencimento</th>
-                                    <th className="px-3 py-3 font-semibold text-right">Principal</th>
-                                    <th className="px-3 py-3 font-semibold text-right">Multa</th>
-                                    <th className="px-3 py-3 font-semibold text-right">Juros</th>
-                                    <th className="px-3 py-3 font-semibold text-right">Total</th>
-                                    <th className="px-3 py-3 font-semibold text-center">Ações</th>
+                                    <ResizableTh width={getColumnWidth('numero')} onResize={(w) => handleResize('numero', w)} className="px-3 py-3 font-semibold">Número</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('data')} onResize={(w) => handleResize('data', w)} className="px-3 py-3 font-semibold">Data</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('empresa')} onResize={(w) => handleResize('empresa', w)} className="px-3 py-3 font-semibold">Empresa</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('tipo')} onResize={(w) => handleResize('tipo', w)} className="px-3 py-3 font-semibold">Tipo</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('codigo')} onResize={(w) => handleResize('codigo', w)} className="px-3 py-3 font-semibold">Código</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('periodo')} onResize={(w) => handleResize('periodo', w)} className="px-3 py-3 font-semibold">Período</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('vencimento')} onResize={(w) => handleResize('vencimento', w)} className="px-3 py-3 font-semibold">Vencimento</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('principal')} onResize={(w) => handleResize('principal', w)} className="px-3 py-3 font-semibold text-right">Principal</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('multa')} onResize={(w) => handleResize('multa', w)} className="px-3 py-3 font-semibold text-right">Multa</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('juros')} onResize={(w) => handleResize('juros', w)} className="px-3 py-3 font-semibold text-right">Juros</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('total')} onResize={(w) => handleResize('total', w)} className="px-3 py-3 font-semibold text-right">Total</ResizableTh>
+                                    <ResizableTh width={getColumnWidth('actions')} onResize={(w) => handleResize('actions', w)} className="px-3 py-3 font-semibold text-center">Ações</ResizableTh>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">

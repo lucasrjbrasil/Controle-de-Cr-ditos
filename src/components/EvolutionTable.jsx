@@ -4,6 +4,8 @@ import { ptBR } from 'date-fns/locale';
 import { calculateEvolution } from '../utils/calculationEngine';
 import { useSelic } from '../hooks/useSelic';
 import { formatCurrency, formatPercentage, parseCurrency } from '../utils/formatters';
+import { useColumnResize } from '../hooks/useColumnResize';
+import ResizableTh from './ui/ResizableTh';
 import { Download, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCredits } from '../context/CreditsContext';
 import { usePerdcomp } from '../context/PerdcompContext';
@@ -14,6 +16,17 @@ export default function EvolutionTable({ credit }) {
     const { rates } = useSelic();
     // const { updateCredit } = useCredits(); // Removed manual update for now
     const { perdcomps } = usePerdcomp();
+    const { columnWidths, handleResize, getColumnWidth } = useColumnResize({
+        mes: 100,
+        saldo_rem: 120,
+        atualizacao: 120,
+        perc_mes: 80,
+        perc_acum: 80,
+        valor_atualizado: 120,
+        v_orig_comp: 120,
+        atualiz_comp: 120,
+        saldo_final: 120
+    });
     const [currentPage, setCurrentPage] = useState(1);
     const ROWS_PER_PAGE = 20;
 
@@ -145,15 +158,15 @@ export default function EvolutionTable({ credit }) {
                     <table className="w-full text-xs text-left">
                         <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
                             <tr>
-                                <th className="px-3 py-2 min-w-[100px]">Mês/Ano</th>
-                                <th className="px-3 py-2 text-right">Saldo Orig. Rem.</th>
-                                <th className="px-3 py-2 text-right">Atualização</th>
-                                <th className="px-3 py-2 text-right">% Mês</th>
-                                <th className="px-3 py-2 text-right">% Acum.</th>
-                                <th className="px-3 py-2 text-right">Valor Atualizado</th>
-                                <th className="px-3 py-2 text-right w-28">V. Orig. Comp.</th>
-                                <th className="px-3 py-2 text-right w-28">Atualiz. Comp.</th>
-                                <th className="px-3 py-2 text-right">Saldo Final</th>
+                                <ResizableTh width={getColumnWidth('mes')} onResize={(w) => handleResize('mes', w)} className="px-3 py-2 min-w-[100px]">Mês/Ano</ResizableTh>
+                                <ResizableTh width={getColumnWidth('saldo_rem')} onResize={(w) => handleResize('saldo_rem', w)} className="px-3 py-2 text-right">Saldo Orig. Rem.</ResizableTh>
+                                <ResizableTh width={getColumnWidth('atualizacao')} onResize={(w) => handleResize('atualizacao', w)} className="px-3 py-2 text-right">Atualização</ResizableTh>
+                                <ResizableTh width={getColumnWidth('perc_mes')} onResize={(w) => handleResize('perc_mes', w)} className="px-3 py-2 text-right">% Mês</ResizableTh>
+                                <ResizableTh width={getColumnWidth('perc_acum')} onResize={(w) => handleResize('perc_acum', w)} className="px-3 py-2 text-right">% Acum.</ResizableTh>
+                                <ResizableTh width={getColumnWidth('valor_atualizado')} onResize={(w) => handleResize('valor_atualizado', w)} className="px-3 py-2 text-right">Valor Atualizado</ResizableTh>
+                                <ResizableTh width={getColumnWidth('v_orig_comp')} onResize={(w) => handleResize('v_orig_comp', w)} className="px-3 py-2 text-right w-28">V. Orig. Comp.</ResizableTh>
+                                <ResizableTh width={getColumnWidth('atualiz_comp')} onResize={(w) => handleResize('atualiz_comp', w)} className="px-3 py-2 text-right w-28">Atualiz. Comp.</ResizableTh>
+                                <ResizableTh width={getColumnWidth('saldo_final')} onResize={(w) => handleResize('saldo_final', w)} className="px-3 py-2 text-right">Saldo Final</ResizableTh>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
