@@ -11,6 +11,8 @@ import { calculateEvolution } from '../utils/calculationEngine';
 import ErrorBoundary from './ErrorBoundary';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';
+import Button from './ui/Button';
+import Input from './ui/Input';
 
 export default function CreditsManager() {
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -151,20 +153,21 @@ export default function CreditsManager() {
                 </div>
 
                 <div className="flex gap-2">
-                    <button
+                    <Button
+                        variant="success"
                         onClick={handleExport}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all active:scale-95"
+                        className="gap-2"
                     >
                         <Download size={20} />
                         Exportar Excel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => setIsFormOpen(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all active:scale-95"
+                        className="gap-2"
                     >
                         <Plus size={20} />
                         Novo Crédito
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -185,11 +188,9 @@ export default function CreditsManager() {
             {/* Filters / Search Bar */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-center gap-4">
                 <div className="relative flex-1 w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input
-                        type="text"
+                    <Input
+                        icon={Search}
                         placeholder="Pesquisar por Empresa, Código..."
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
