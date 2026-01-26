@@ -12,6 +12,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
     auth: {
       getSession: async () => ({ data: { session: null }, error: new Error('Supabase not configured') }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
+      signInWithPassword: async () => ({ data: { user: null }, error: new Error('Erro: VITE_SUPABASE_URL ou KEY não configurados no ambiente de publicação.') }),
+      signUp: async () => ({ data: { user: null }, error: new Error('Erro: VITE_SUPABASE_URL ou KEY não configurados no ambiente de publicação.') }),
+      signOut: async () => ({ error: null }),
     },
     from: () => ({
       select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
