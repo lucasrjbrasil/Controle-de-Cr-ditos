@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Building2, FileText, TrendingUp, DollarSign, Landmark, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import { Building2, FileText, TrendingUp, DollarSign, Landmark, ChevronLeft, ChevronRight, Globe, LayoutDashboard } from 'lucide-react';
 import logo from '../assets/logo.png';
+import Button from './ui/Button';
 
 export default function Sidebar({ activeTab, setActiveTab, selicStatus }) {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     const menuItems = [
+        { id: 'home', label: 'Início', icon: LayoutDashboard },
         { id: 'companies', label: 'Empresas', icon: Building2 },
         { id: 'credits', label: 'Créditos', icon: FileText },
         { id: 'perdcomps', label: 'PERDCOMPs', icon: TrendingUp },
@@ -19,12 +21,14 @@ export default function Sidebar({ activeTab, setActiveTab, selicStatus }) {
             className={`${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 sticky top-0 relative`}
         >
             {/* Toggle Button */}
-            <button
+            <Button
+                variant="secondary"
+                size="iconSm"
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                className="absolute -right-3 top-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 shadow-md text-slate-500 hover:text-blue-600 transition-colors z-10"
+                className="absolute -right-3 top-8 rounded-full shadow-md z-10 h-6 w-6 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-0"
             >
                 {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-            </button>
+            </Button>
 
             <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} overflow-hidden whitespace-nowrap`}>
                 <div className="flex-shrink-0 flex items-center">
@@ -45,8 +49,8 @@ export default function Sidebar({ activeTab, setActiveTab, selicStatus }) {
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
                             className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-4'} py-3 rounded-xl transition-all duration-200 relative group ${isActive
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/20'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400'
+                                ? 'bg-irko-blue text-white shadow-lg shadow-irko-blue/20'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-irko-blue dark:hover:text-blue-400'
                                 }`}
                             title={isCollapsed ? item.label : ''}
                         >
@@ -66,30 +70,10 @@ export default function Sidebar({ activeTab, setActiveTab, selicStatus }) {
                 })}
             </nav>
 
-            <div className={`p-4 border-t border-slate-200 dark:border-slate-800 space-y-3 ${isCollapsed ? 'items-center text-center' : ''}`}>
-                <div className="flex flex-col gap-1">
-                    {!isCollapsed && (
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            Conexão BCB
-                        </div>
-                    )}
-                    <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
-                        <div className={`w-2 h-2 rounded-full ${selicStatus?.isConnected ? 'bg-emerald-500' : 'bg-red-500'}`} title={selicStatus?.isConnected ? 'Conectado' : 'Desconectado'}></div>
-                        {!isCollapsed && (
-                            <span className="text-xs text-slate-600 dark:text-slate-300">
-                                {selicStatus?.loading ? 'Conectando...' : (selicStatus?.isConnected ? 'Ativa' : 'Inativa')}
-                            </span>
-                        )}
-                    </div>
-                    {!isCollapsed && selicStatus?.lastUpdated && (
-                        <div className="text-[10px] text-slate-400">
-                            Última taxa: {selicStatus.lastUpdated}
-                        </div>
-                    )}
-                </div>
+            <div className={`p-4 border-t border-slate-200 dark:border-slate-800 ${isCollapsed ? 'items-center text-center' : ''}`}>
                 {!isCollapsed && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400 text-center pt-2 border-t border-slate-100 dark:border-slate-800">
-                        &copy; 2026 Tax App
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 text-center pt-2 border-t border-slate-100 dark:border-slate-800">
+                        &copy; {new Date().getFullYear()} IRKO Contabilidade
                     </div>
                 )}
             </div>

@@ -1,19 +1,57 @@
 @import "tailwindcss";
 
 @theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --color-blue-50: #f0f4f9;
   --color-blue-100: #dde5f0;
   --color-blue-200: #c1d0e5;
   --color-blue-300: #99b3d4;
   --color-blue-400: #6b8dc0;
   --color-blue-500: #4D629B;
-  /* IRKO Brand Blue */
-  --color-blue-600: #3c4e7d;
-  --color-blue-700: #313f66;
-  --color-blue-800: #293454;
-  --color-blue-950: #191d2d;
-
-  --color-irko-orange: #F38D33;
+  /* IRKO BRAND COLORS */
+  --color-irko-blue: #003B71;
+  --color-irko-orange: #F37021;
+  --color-irko-blue-hover: #002d56;
 }
 
 @variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+  }
+
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #1e293b;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+  }
+
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+  }
+}
+
+body {
+  @apply bg-slate-50 dark:bg-slate-950 font-sans antialiased;
+  overflow: hidden;
+}
+
+#root {
+  height: 111.11vh;
+  width: 111.11vw;
+  transform: scale(0.9);
+  transform-origin: top left;
+}

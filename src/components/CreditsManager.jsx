@@ -172,15 +172,15 @@ export default function CreditsManager() {
             </div>
 
             {/* Total Balance Card */}
-            <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-r from-irko-blue to-irko-blue-hover rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div>
-                        <p className="text-blue-100 text-sm font-medium mb-1">Saldo Total Disponível ({competencyDate.split('-').reverse().join('/')})</p>
+                        <p className="text-blue-100/80 text-sm font-medium mb-1">Saldo Total Disponível ({competencyDate.split('-').reverse().join('/')})</p>
                         <h3 className="text-4xl font-bold">{formatCurrency(totalBalance)}</h3>
                     </div>
                     <div className="text-right">
-                        <p className="text-blue-200 text-xs">Considerando {filteredCredits.length} créditos filtrados</p>
+                        <p className="text-white/60 text-xs">Considerando {filteredCredits.length} créditos filtrados</p>
                     </div>
                 </div>
             </div>
@@ -205,9 +205,9 @@ export default function CreditsManager() {
                                 checked={showOnlyAvailable}
                                 onChange={(e) => setShowOnlyAvailable(e.target.checked)}
                             />
-                            <div className="w-10 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            <div className="w-10 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-irko-orange rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-irko-orange"></div>
                         </div>
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap group-hover:text-blue-600 transition-colors">
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap group-hover:text-irko-blue transition-colors">
                             Somente com Saldo
                         </span>
                     </label>
@@ -220,16 +220,16 @@ export default function CreditsManager() {
                         </label>
                         <input
                             type="month"
-                            className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                            className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue outline-none text-sm"
                             value={competencyDate}
                             onChange={(e) => setCompetencyDate(e.target.value)}
                         />
                     </div>
                 </div>
 
-                <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <Button variant="secondary" size="icon" className="text-slate-500">
                     <Filter size={20} />
-                </button>
+                </Button>
             </div>
 
             {/* Credits List / Table Placeholder */}
@@ -240,9 +240,9 @@ export default function CreditsManager() {
                             <Plus size={32} className="text-slate-300 dark:text-slate-600" />
                         </div>
                         <p>Nenhum crédito encontrado.</p>
-                        <button onClick={() => setIsFormOpen(true)} className="text-blue-600 hover:underline mt-2">
+                        <Button variant="link" onClick={() => setIsFormOpen(true)} className="mt-2">
                             Criar novo
-                        </button>
+                        </Button>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -326,26 +326,32 @@ export default function CreditsManager() {
                                                 </td>
                                                 <td className="px-6 py-4 text-center">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        <button
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="iconSm"
                                                             onClick={() => handleEdit(credit)}
-                                                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                                                            className="text-slate-500 hover:text-irko-blue"
                                                             title="Editar"
                                                         >
                                                             <Pencil size={16} />
-                                                        </button>
-                                                        <button
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="iconSm"
                                                             onClick={() => handleDelete(credit.id)}
-                                                            className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                                            className="text-slate-500 hover:text-red-500"
                                                             title="Excluir"
                                                         >
                                                             <Trash2 size={16} />
-                                                        </button>
-                                                        <button
+                                                        </Button>
+                                                        <Button
+                                                            variant="link"
+                                                            size="sm"
                                                             onClick={() => toggleDetails(credit.id)}
-                                                            className="text-blue-600 hover:text-blue-700 font-medium text-sm ml-2"
+                                                            className="ml-2"
                                                         >
                                                             {expandedId === credit.id ? 'Ocultar' : 'Detalhes'}
-                                                        </button>
+                                                        </Button>
                                                     </div>
                                                 </td>
                                             </tr>

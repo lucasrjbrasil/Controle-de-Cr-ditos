@@ -11,6 +11,8 @@ import LoanForm from './LoanForm';
 import LoanEvolutionTable from './LoanEvolutionTable';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';
+import Button from './ui/Button';
+import Input from './ui/Input';
 
 export default function LoanManager() {
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -200,13 +202,13 @@ export default function LoanManager() {
                 </div>
 
                 <div className="flex gap-2">
-                    <button
+                    <Button
                         onClick={() => setIsFormOpen(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all active:scale-95"
+                        className="gap-2"
                     >
                         <Plus size={20} />
                         Novo Empréstimo
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -232,15 +234,13 @@ export default function LoanManager() {
                         type="month"
                         value={referenceMonth}
                         onChange={(e) => setReferenceMonth(e.target.value)}
-                        className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="px-4 py-2 border-none rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none h-10"
                     />
                 </div>
                 <div className="relative flex-1 w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input
-                        type="text"
+                    <Input
+                        icon={Search}
                         placeholder="Pesquisar por Devedor/Credor..."
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -255,9 +255,9 @@ export default function LoanManager() {
                             <Landmark size={32} className="text-slate-300 dark:text-slate-600" />
                         </div>
                         <p>Nenhum empréstimo encontrado.</p>
-                        <button onClick={() => setIsFormOpen(true)} className="text-blue-600 hover:underline mt-2">
+                        <Button variant="link" onClick={() => setIsFormOpen(true)} className="mt-2">
                             Adicionar agora
-                        </button>
+                        </Button>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -313,12 +313,14 @@ export default function LoanManager() {
                                         <React.Fragment key={loan.id}>
                                             <tr className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${expandedId === loan.id ? 'bg-slate-50/50 dark:bg-slate-800/30' : ''}`}>
                                                 <td className="px-6 py-4">
-                                                    <button
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="iconSm"
                                                         onClick={() => toggleExpand(loan.id)}
-                                                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-slate-400"
+                                                        className="text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
                                                     >
                                                         {expandedId === loan.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                                    </button>
+                                                    </Button>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="font-medium text-slate-700 dark:text-slate-300">
@@ -386,27 +388,33 @@ export default function LoanManager() {
                                                 <td className="px-6 py-4 text-center">
 
                                                     <div className="flex items-center justify-center gap-2">
-                                                        <button
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="iconSm"
                                                             onClick={() => handleAddPayment(loan.id)}
-                                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors"
+                                                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
                                                             title="Adicionar Pagamento"
                                                         >
                                                             <CreditCard size={18} />
-                                                        </button>
-                                                        <button
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="iconSm"
                                                             onClick={() => handleEdit(loan)}
-                                                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                                                            className="text-slate-500 hover:text-blue-600"
                                                             title="Editar"
                                                         >
                                                             <Pencil size={16} />
-                                                        </button>
-                                                        <button
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="iconSm"
                                                             onClick={() => handleDelete(loan.id)}
-                                                            className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                                                            className="text-slate-500 hover:text-red-500"
                                                             title="Excluir"
                                                         >
                                                             <Trash2 size={16} />
-                                                        </button>
+                                                        </Button>
                                                     </div>
                                                 </td>
                                             </tr>

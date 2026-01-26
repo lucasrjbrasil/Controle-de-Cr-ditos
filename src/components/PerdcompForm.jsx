@@ -3,6 +3,8 @@ import { X, Save } from 'lucide-react';
 import { useCredits } from '../context/CreditsContext';
 import { usePerdcomp } from '../context/PerdcompContext';
 import { formatCurrency, parseCurrency } from '../utils/formatters';
+import Button from './ui/Button';
+import Input from './ui/Input';
 
 export default function PerdcompForm({ onClose, initialData }) {
     const { credits } = useCredits();
@@ -117,9 +119,7 @@ export default function PerdcompForm({ onClose, initialData }) {
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                 Número PERDCOMP
                             </label>
-                            <input
-                                type="text"
-                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            <Input
                                 placeholder="00000.00000.00000000.00.00.00000"
                                 value={formData.numero}
                                 onChange={e => setFormData({ ...formData, numero: e.target.value })}
@@ -130,9 +130,8 @@ export default function PerdcompForm({ onClose, initialData }) {
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                 Data de Transmissão
                             </label>
-                            <input
+                            <Input
                                 type="date"
-                                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                                 value={formData.dataCriacao}
                                 onChange={e => setFormData({ ...formData, dataCriacao: e.target.value })}
                                 required
@@ -188,9 +187,7 @@ export default function PerdcompForm({ onClose, initialData }) {
                                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                                     Código Imposto
                                 </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                <Input
                                     placeholder="Ex: 5952"
                                     value={formData.codigoImposto}
                                     onChange={e => setFormData({ ...formData, codigoImposto: e.target.value })}
@@ -200,9 +197,7 @@ export default function PerdcompForm({ onClose, initialData }) {
                                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                                     Período Apuração
                                 </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                <Input
                                     placeholder="MM/AAAA"
                                     value={formData.periodoApuracao}
                                     onChange={e => setFormData({ ...formData, periodoApuracao: e.target.value })}
@@ -212,9 +207,8 @@ export default function PerdcompForm({ onClose, initialData }) {
                                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
                                     Vencimento
                                 </label>
-                                <input
+                                <Input
                                     type="date"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                                     value={formData.vencimento}
                                     onChange={e => setFormData({ ...formData, vencimento: e.target.value })}
                                 />
@@ -226,9 +220,8 @@ export default function PerdcompForm({ onClose, initialData }) {
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     Valor Principal (R$)
                                 </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                                <Input
+                                    className="font-mono"
                                     placeholder="0,00"
                                     value={formData.valorPrincipal}
                                     onChange={e => handleValueChange('valorPrincipal', e.target.value)}
@@ -239,9 +232,8 @@ export default function PerdcompForm({ onClose, initialData }) {
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     Multa (R$)
                                 </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                                <Input
+                                    className="font-mono"
                                     placeholder="0,00"
                                     value={formData.multa}
                                     onChange={e => handleValueChange('multa', e.target.value)}
@@ -251,9 +243,8 @@ export default function PerdcompForm({ onClose, initialData }) {
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     Juros (R$)
                                 </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                                <Input
+                                    className="font-mono"
                                     placeholder="0,00"
                                     value={formData.juros}
                                     onChange={e => handleValueChange('juros', e.target.value)}
@@ -271,20 +262,19 @@ export default function PerdcompForm({ onClose, initialData }) {
                     </div>
 
                     <div className="flex justify-end pt-4 gap-2">
-                        <button
-                            type="button"
+                        <Button
+                            variant="secondary"
                             onClick={onClose}
-                            className="px-4 py-2 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 rounded-lg transition-colors"
                         >
                             Cancelar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
+                            className="flex items-center gap-2"
                         >
                             <Save size={18} />
                             Salvar PERDCOMP
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </div>

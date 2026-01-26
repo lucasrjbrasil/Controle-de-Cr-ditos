@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Landmark, X, Save, AlertCircle, Info } from 'lucide-react';
 import { useLoans } from '../context/LoanContext';
 import { useCompanies } from '../context/CompanyContext';
+import Button from './ui/Button';
+import Input from './ui/Input';
 
 const LabelWithTooltip = ({ label, tooltip }) => (
     <div className="flex items-center gap-2 group relative w-fit">
@@ -131,13 +133,11 @@ export default function LoanForm({ onClose, initialData = null }) {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Instituição Financeira / Contraparte</label>
-                            <input
-                                type="text"
+                            <Input
                                 name="instituicao"
                                 value={formData.instituicao}
                                 onChange={handleChange}
                                 placeholder="Ex: Bradesco, Itaú, Fornecedor X..."
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                                 required
                             />
                         </div>
@@ -186,13 +186,12 @@ export default function LoanForm({ onClose, initialData = null }) {
                         {formData.moeda !== 'BRL' && (
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Taxa de Câmbio (1 {formData.moeda} = X BRL)</label>
-                                <input
+                                <Input
                                     type="number"
                                     step="0.0001"
                                     name="taxaCambio"
                                     value={formData.taxaCambio}
                                     onChange={handleChange}
-                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                                     required
                                 />
                             </div>
@@ -251,26 +250,24 @@ export default function LoanForm({ onClose, initialData = null }) {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Data de Início</label>
-                            <input
+                            <Input
                                 type="date"
                                 name="dataInicio"
                                 value={formData.dataInicio}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                                 required
                             />
                         </div>
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Valor em Moeda Original</label>
-                            <input
+                            <Input
                                 type="number"
                                 step="0.01"
                                 name="valorOriginal"
                                 value={formData.valorOriginal}
                                 onChange={handleChange}
                                 placeholder="0,00"
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                                 required
                             />
                         </div>
@@ -285,14 +282,14 @@ export default function LoanForm({ onClose, initialData = null }) {
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Taxa de Juros (%)</label>
                             <div className="flex gap-2">
-                                <input
+                                <Input
                                     type="number"
                                     step="0.001"
                                     name="taxa"
                                     value={formData.taxa}
                                     onChange={handleChange}
                                     placeholder="0,00"
-                                    className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                                    wrapperClassName="flex-1"
                                     required
                                 />
                                 <select
@@ -309,13 +306,12 @@ export default function LoanForm({ onClose, initialData = null }) {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Prazo (Meses)</label>
-                            <input
+                            <Input
                                 type="number"
                                 name="prazo"
                                 value={formData.prazo}
                                 onChange={handleChange}
                                 placeholder="Indeterminado (opcional)"
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                             />
                         </div>
 
@@ -337,20 +333,19 @@ export default function LoanForm({ onClose, initialData = null }) {
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-                        <button
-                            type="button"
+                        <Button
+                            variant="secondary"
                             onClick={onClose}
-                            className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                         >
                             Cancelar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
-                            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-lg shadow-indigo-500/30 flex items-center gap-2 transition-all"
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
                         >
                             <Save size={18} />
                             {initialData ? 'Atualizar' : 'Salvar Empréstimo'}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </div>

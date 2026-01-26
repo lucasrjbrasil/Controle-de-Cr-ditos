@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, History, Plus, Pencil, Trash2, X, Check, Globe, Settings, Trash, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, History, Plus, Pencil, Trash2, X, Check, Globe, Settings, Trash, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useExchangeRates } from '../hooks/useExchangeRates';
 import { bcbService, COMMON_CODES } from '../services/bcbService';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';
+import Button from './ui/Button';
+import Input from './ui/Input';
 
 export default function ExchangeRateManager() {
     const [managedCurrencies, setManagedCurrencies] = useState({});
@@ -19,15 +21,20 @@ export default function ExchangeRateManager() {
     const [searchTerm, setSearchTerm] = useState('');
     const [editingDate, setEditingDate] = useState(null);
     const [editValue, setEditValue] = useState({ buy: '', sell: '' });
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
 
     // Load managed currencies on mount
     useEffect(() => {
-        const currencies = bcbService.getManagedCurrencies();
-        setManagedCurrencies(currencies);
-        const keys = Object.keys(currencies);
-        if (keys.length > 0 && !currencies[currency]) {
-            setCurrency(keys[0]);
+        async function load() {
+            const currencies = await bcbService.getManagedCurrencies();
+            setManagedCurrencies(currencies);
+            const keys = Object.keys(currencies);
+            if (keys.length > 0 && !currencies[currency]) {
+                setCurrency(keys[0]);
+            }
         }
+        load();
     }, [currency]);
 
     const filteredRates = useMemo(() => {
@@ -58,6 +65,17 @@ export default function ExchangeRateManager() {
             return [];
         }
     }, [rates, searchTerm]);
+
+    const totalPages = Math.ceil(filteredRates.length / itemsPerPage);
+    const paginatedRates = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return filteredRates.slice(start, start + itemsPerPage);
+    }, [filteredRates, currentPage]);
+
+    // Reset to page 1 when search or currency changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, currency]);
 
     const startEditing = (rate) => {
         setEditingDate(rate.data);
@@ -139,22 +157,22 @@ export default function ExchangeRateManager() {
         );
     }, [managerSearch, managedCurrencies]);
 
-    const handleSelectCurrency = (codeItem) => {
+    const handleSelectCurrency = async (codeItem) => {
         // If not managed, add it first
         if (!managedCurrencies[codeItem.symbol]) {
-            bcbService.addManagedCurrency(codeItem.symbol, codeItem.buy, codeItem.sell);
-            const updated = bcbService.getManagedCurrencies();
+            await bcbService.addManagedCurrency(codeItem.symbol, codeItem.buy, codeItem.sell);
+            const updated = await bcbService.getManagedCurrencies();
             setManagedCurrencies(updated);
         }
         setCurrency(codeItem.symbol);
         setIsCurrencyManagerOpen(false);
     };
 
-    const handleRemoveManaged = (e, symbol) => {
+    const handleRemoveManaged = async (e, symbol) => {
         e.stopPropagation(); // Prevent selection when clicking remove
         if (window.confirm(`Remover ${symbol} da lista de moedas gerenciadas?`)) {
-            bcbService.removeManagedCurrency(symbol);
-            const updated = bcbService.getManagedCurrencies();
+            await bcbService.removeManagedCurrency(symbol);
+            const updated = await bcbService.getManagedCurrencies();
             setManagedCurrencies(updated);
             // If current currency was removed, switch to another
             if (currency === symbol) {
@@ -221,11 +239,11 @@ export default function ExchangeRateManager() {
         }
     };
 
-    const handleAddManualCurrency = (e) => {
+    const handleAddManualCurrency = async (e) => {
         e.preventDefault();
         if (newCurrency.symbol && newCurrency.buySeriesId && newCurrency.sellSeriesId) {
-            bcbService.addManagedCurrency(newCurrency.symbol.toUpperCase(), newCurrency.buySeriesId, newCurrency.sellSeriesId);
-            const updated = bcbService.getManagedCurrencies();
+            await bcbService.addManagedCurrency(newCurrency.symbol.toUpperCase(), newCurrency.buySeriesId, newCurrency.sellSeriesId);
+            const updated = await bcbService.getManagedCurrencies();
             setManagedCurrencies(updated);
             setCurrency(newCurrency.symbol.toUpperCase());
             setNewCurrency({ symbol: '', buySeriesId: '', sellSeriesId: '' });
@@ -248,56 +266,53 @@ export default function ExchangeRateManager() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button
+                    <Button
+                        variant="ghost"
                         onClick={() => setIsCurrencyManagerOpen(true)}
-                        className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2 text-slate-800 dark:text-white shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
                         title="Trocar Moeda"
                     >
                         <span className="font-bold flex items-center gap-2">
                             {currency}
                             <ChevronDown size={16} className="text-slate-400" />
                         </span>
-                    </button>
-
-                    <button
-                        onClick={() => {
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        onClick={async () => {
                             if (window.confirm(`Isso apagará TODAS as taxas salvas de ${currency} e limpará o cache de histórico. Recomendado para corrigir taxas incorretas.`)) {
-                                bcbService.clearHistoryCache(currency);
-                                localStorage.removeItem(`exchange_${currency}_overrides`);
+                                await bcbService.clearHistoryCache(currency);
+                                await bcbService.clearAllOverrides(currency);
                                 window.location.reload();
                             }
                         }}
-                        className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all border border-red-200 dark:border-red-800"
+                        className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800"
                         title="Limpar Taxas Salvas"
                     >
                         <Trash size={20} />
-                    </button>
-
-                    <button
+                    </Button>
+                    <Button
+                        variant="secondary"
                         onClick={() => setIsBatchOpen(true)}
-                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg font-medium text-sm border border-slate-200 dark:border-slate-700"
+                        className="flex items-center gap-2"
                     >
                         <Calendar size={18} />
                         Importar Período
-                    </button>
-
-
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => setIsAddOpen(true)}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg shadow-blue-500/20 font-medium text-sm"
+                        className="flex items-center gap-2"
                     >
                         <Plus size={18} />
                         Adicionar
-                    </button>
-
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        <input
-                            type="text"
+                    </Button>
+                    <div className="relative w-full md:w-48">
+                        <Input
+                            icon={Search}
                             placeholder="Buscar..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 w-full md:w-48 text-sm"
+                            className="text-sm"
                         />
                     </div>
                 </div>
@@ -319,13 +334,11 @@ export default function ExchangeRateManager() {
 
                         <div className="mb-4 flex-shrink-0">
                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input
-                                    type="text"
+                                <Input
+                                    icon={Search}
                                     placeholder="Buscar moeda (ex: Peso, Euro, JPY)..."
                                     value={managerSearch}
                                     onChange={(e) => setManagerSearch(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500"
                                     autoFocus
                                 />
                             </div>
@@ -388,33 +401,36 @@ export default function ExchangeRateManager() {
 
                             {showManualAdd && (
                                 <form onSubmit={handleAddManualCurrency} className="grid grid-cols-4 gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800 animate-in slide-in-from-bottom-2 duration-200">
-                                    <input
-                                        type="text"
+                                    <Input
                                         placeholder="Símbolo"
                                         value={newCurrency.symbol}
                                         onChange={e => setNewCurrency({ ...newCurrency, symbol: e.target.value.toUpperCase() })}
-                                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                                        className="text-xs"
                                         required
                                     />
-                                    <input
+                                    <Input
                                         type="number"
                                         placeholder="ID Compra"
                                         value={newCurrency.buySeriesId}
                                         onChange={e => setNewCurrency({ ...newCurrency, buySeriesId: e.target.value })}
-                                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                                        className="text-xs"
                                         required
                                     />
-                                    <input
+                                    <Input
                                         type="number"
                                         placeholder="ID Venda"
                                         value={newCurrency.sellSeriesId}
                                         onChange={e => setNewCurrency({ ...newCurrency, sellSeriesId: e.target.value })}
-                                        className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                                        className="text-xs"
                                         required
                                     />
-                                    <button type="submit" className="bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center">
+                                    <Button
+                                        type="submit"
+                                        size="icon"
+                                        className="w-full"
+                                    >
                                         <Plus size={16} />
-                                    </button>
+                                    </Button>
                                 </form>
                             )}
                         </div>
@@ -430,16 +446,18 @@ export default function ExchangeRateManager() {
                             <div>
                                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Data (DD/MM/AAAA)</label>
                                 <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder="01/01/2026"
-                                        value={newRateData.date}
-                                        onChange={e => setNewRateData({ ...newRateData, date: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
-                                        required
-                                    />
-                                    <button
+                                    <div className="flex-1">
+                                        <Input
+                                            placeholder="01/01/2026"
+                                            value={newRateData.date}
+                                            onChange={e => setNewRateData({ ...newRateData, date: e.target.value })}
+                                            className="text-sm"
+                                            required
+                                        />
+                                    </div>
+                                    <Button
                                         type="button"
+                                        variant="secondary"
                                         onClick={async () => {
                                             if (!newRateData.date || newRateData.date.length < 10) {
                                                 alert("Digite a data primeiro.");
@@ -461,37 +479,37 @@ export default function ExchangeRateManager() {
                                                 alert("Erro ao buscar no BCB.");
                                             }
                                         }}
-                                        className="px-3 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg text-xs font-medium"
+                                        className="text-xs font-medium whitespace-nowrap"
                                     >
                                         Buscar BCB
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Compra (R$)</label>
-                                    <input
+                                    <Input
                                         type="number"
                                         step="0.0001"
                                         value={newRateData.buy}
                                         onChange={e => setNewRateData({ ...newRateData, buy: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                                        className="text-sm"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Venda (R$)</label>
-                                    <input
+                                    <Input
                                         type="number"
                                         step="0.0001"
                                         value={newRateData.sell}
                                         onChange={e => setNewRateData({ ...newRateData, sell: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                                        className="text-sm"
                                     />
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <button type="button" onClick={() => setIsAddOpen(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-sm">Cancelar</button>
-                                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm">Salvar</button>
+                                <Button type="button" variant="secondary" onClick={() => setIsAddOpen(false)} className="text-sm">Cancelar</Button>
+                                <Button type="submit" className="font-medium text-sm">Salvar</Button>
                             </div>
                         </form>
                     </div>
@@ -506,24 +524,22 @@ export default function ExchangeRateManager() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Início (DD/MM/AAAA)</label>
-                                    <input
-                                        type="text"
+                                    <Input
                                         placeholder="01/01/2024"
                                         value={batchRange.start}
                                         onChange={e => setBatchRange({ ...batchRange, start: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                                        className="text-sm"
                                         required
                                         disabled={isImporting}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Fim (DD/MM/AAAA)</label>
-                                    <input
-                                        type="text"
+                                    <Input
                                         placeholder="31/01/2024"
                                         value={batchRange.end}
                                         onChange={e => setBatchRange({ ...batchRange, end: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm"
+                                        className="text-sm"
                                         required
                                         disabled={isImporting}
                                     />
@@ -542,10 +558,10 @@ export default function ExchangeRateManager() {
                             )}
 
                             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <button type="button" onClick={() => setIsBatchOpen(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-sm" disabled={isImporting}>Cancelar</button>
-                                <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm" disabled={isImporting}>
+                                <Button type="button" variant="secondary" onClick={() => setIsBatchOpen(false)} className="text-sm" disabled={isImporting}>Cancelar</Button>
+                                <Button type="submit" className="font-medium text-sm" disabled={isImporting}>
                                     {isImporting ? 'Buscando...' : 'Iniciar Importação'}
-                                </button>
+                                </Button>
                             </div>
                         </form>
                     </div>
@@ -573,14 +589,15 @@ export default function ExchangeRateManager() {
                                     <Search size={16} />
                                     Moedas Comuns
                                 </h4>
-                                <input
-                                    type="text"
-                                    placeholder="Filtrar por nome ou símbolo (ex: Euro, AUD)..."
-                                    value={catalogSearch}
-                                    onChange={(e) => setCatalogSearch(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm mb-3"
-                                    autoFocus
-                                />
+                                <div className="mb-3">
+                                    <Input
+                                        placeholder="Filtrar por nome ou símbolo (ex: Euro, AUD)..."
+                                        value={catalogSearch}
+                                        onChange={(e) => setCatalogSearch(e.target.value)}
+                                        className="text-sm"
+                                        autoFocus
+                                    />
+                                </div>
                                 <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden flex-1 overflow-y-auto">
                                     <table className="w-full text-sm text-left">
                                         <thead className="bg-slate-50 dark:bg-slate-800 font-medium text-slate-500 sticky top-0">
@@ -618,21 +635,21 @@ export default function ExchangeRateManager() {
                                 </p>
 
                                 <div className="flex gap-2 mb-4">
-                                    <input
+                                    <Input
                                         type="number"
                                         placeholder="Ex: 21619"
                                         value={verifyId}
                                         onChange={(e) => setVerifyId(e.target.value)}
-                                        className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
                                         onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                                        wrapperClassName="flex-1"
                                     />
-                                    <button
+                                    <Button
                                         onClick={handleVerify}
                                         disabled={isVerifying || !verifyId}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        className="font-medium"
                                     >
                                         {isVerifying ? '...' : 'Verificar'}
-                                    </button>
+                                    </Button>
                                 </div>
 
                                 <div className="flex-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
@@ -694,10 +711,10 @@ export default function ExchangeRateManager() {
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {loading ? (
                                 <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">Carregando taxas...</td></tr>
-                            ) : filteredRates.length === 0 ? (
+                            ) : paginatedRates.length === 0 ? (
                                 <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">Nenhuma taxa encontrada.</td></tr>
                             ) : (
-                                filteredRates.map((rate, index) => {
+                                paginatedRates.map((rate, index) => {
                                     const isEditing = editingDate === rate.data;
                                     return (
                                         <tr key={rate.data || index} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${rate.isOverridden ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
@@ -734,25 +751,25 @@ export default function ExchangeRateManager() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-3 text-center">
-                                                <span className={`px-2 py-1 text-xs rounded-full font-medium ${rate.isOverridden
-                                                    ? (rate.source === 'BCB' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700')
+                                                <span className={`px-2 py-1 text-xs rounded-full font-medium ${rate.isOverridden || rate.source === 'BCB'
+                                                    ? (rate.source === 'BCB' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400')
                                                     : 'text-slate-400'
                                                     }`}>
-                                                    {rate.isOverridden ? (rate.source === 'BCB' ? 'BCB' : 'Manual') : 'Oficial'}
+                                                    {rate.isOverridden || rate.source === 'BCB' ? (rate.source === 'BCB' ? 'BCB' : 'Manual') : 'Oficial'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     {isEditing ? (
                                                         <>
-                                                            <button onClick={saveEditing} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg"><Check size={18} /></button>
-                                                            <button onClick={cancelEditing} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg"><X size={18} /></button>
+                                                            <Button onClick={saveEditing} variant="ghost" size="iconSm" className="text-emerald-600 hover:bg-emerald-50"><Check size={18} /></Button>
+                                                            <Button onClick={cancelEditing} variant="ghost" size="iconSm" className="text-slate-400 hover:bg-slate-100"><X size={18} /></Button>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <button onClick={() => startEditing(rate)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Pencil size={16} /></button>
+                                                            <Button onClick={() => startEditing(rate)} variant="ghost" size="iconSm" className="text-slate-400 hover:text-blue-600 hover:bg-blue-50"><Pencil size={16} /></Button>
                                                             {rate.isOverridden && (
-                                                                <button onClick={() => handleDelete(rate.data)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                                                                <Button onClick={() => handleDelete(rate.data)} variant="ghost" size="iconSm" className="text-slate-400 hover:text-red-600 hover:bg-red-50"><Trash2 size={16} /></Button>
                                                             )}
                                                         </>
                                                     )}
@@ -765,6 +782,58 @@ export default function ExchangeRateManager() {
                         </tbody>
                     </table>
                 </div>
+
+                {totalPages > 1 && (
+                    <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            Mostrando {Math.min(filteredRates.length, (currentPage - 1) * itemsPerPage + 1)} a {Math.min(filteredRates.length, currentPage * itemsPerPage)} de {filteredRates.length} taxas
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="iconSm"
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="disabled:opacity-30"
+                            >
+                                <ChevronLeft size={18} />
+                            </Button>
+
+                            <div className="flex items-center gap-1">
+                                {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                                    let pageNum;
+                                    if (totalPages <= 5) pageNum = i + 1;
+                                    else if (currentPage <= 3) pageNum = i + 1;
+                                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                                    else pageNum = currentPage - 2 + i;
+
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum
+                                                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <Button
+                                variant="ghost"
+                                size="iconSm"
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="disabled:opacity-30"
+                            >
+                                <ChevronRight size={18} />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

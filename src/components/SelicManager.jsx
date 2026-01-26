@@ -1,14 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Save, History, RotateCcw, Plus, Pencil, Trash2, X, Check } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Save, History, RotateCcw, Plus, Pencil, Trash2, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSelic } from '../hooks/useSelic';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';
+import Button from './ui/Button';
+import Input from './ui/Input';
 
 export default function SelicManager() {
     const { rates, updateRate, removeRate, loading, error, batchUpdateRates } = useSelic();
     const [searchTerm, setSearchTerm] = useState('');
     const [editingDate, setEditingDate] = useState(null);
     const [editValue, setEditValue] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
+
     const { columnWidths, handleResize, getColumnWidth } = useColumnResize({
         data: 200,
         taxa: 150,
@@ -20,28 +25,23 @@ export default function SelicManager() {
         if (!rates || !Array.isArray(rates)) return [];
 
         try {
-            // Helper to parse dates to a sortable number (YYYYMM)
             const parseToDateValue = (dateStr) => {
                 if (!dateStr) return 0;
                 const parts = dateStr.split('/');
                 if (parts.length === 3) {
-                    // DD/MM/YYYY -> YYYYMM
                     const [day, month, year] = parts;
                     return parseInt(year) * 100 + parseInt(month);
                 } else if (parts.length === 2) {
-                    // MM/YYYY -> YYYYMM
                     const [month, year] = parts;
                     return parseInt(year) * 100 + parseInt(month);
                 }
                 return 0;
             };
 
-            // 1. Sort by date descending
             const sorted = [...rates].sort((a, b) => {
                 return parseToDateValue(b.data) - parseToDateValue(a.data);
             });
 
-            // 2. Filter based on search term
             return sorted.filter(r => {
                 const searchStr = searchTerm.toLowerCase();
                 const dateMatches = r?.data && r.data.includes(searchTerm);
@@ -62,6 +62,16 @@ export default function SelicManager() {
             return [];
         }
     }, [rates, searchTerm]);
+
+    const totalPages = Math.ceil(filteredRates.length / itemsPerPage);
+    const paginatedRates = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return filteredRates.slice(start, start + itemsPerPage);
+    }, [filteredRates, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
 
     const startEditing = (rate) => {
         setEditingDate(rate.data);
@@ -87,106 +97,14 @@ export default function SelicManager() {
         if (window.confirm(`Tem certeza que deseja excluir/restaurar a taxa de ${displayDate}?`)) {
             try {
                 removeRate(date);
-                // Note: useSelic triggers reload currently, so no need for extensive local state cleanup
             } catch (error) {
                 alert('Erro ao excluir: ' + error.message);
             }
         }
     };
 
-    // ... (rest of modals and imports)
-
-    // In render return... replace table body mapping:
-    /*
-                            {filteredRates.map((rate, index) => {
-                                if (!rate || !rate.data) return null;
-
-                                const isEditing = editingDate === rate.data;
-
-                                return (
-                                    <tr key={rate.data || index} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${rate.isOverridden ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
-                                        <td className="px-6 py-3 font-mono text-slate-600 dark:text-slate-300">
-                                            {rate.data}
-                                        </td>
-                                        <td className="px-6 py-3">
-                                            {isEditing ? (
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={editValue}
-                                                        onChange={(e) => setEditValue(e.target.value)}
-                                                        className="bg-white dark:bg-slate-800 border border-blue-300 rounded px-2 py-1 w-24 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                        autoFocus
-                                                    />
-                                                    <span className="text-slate-400">%</span>
-                                                </div>
-                                            ) : (
-                                                <span className="font-medium text-slate-700 dark:text-slate-300">
-                                                    {rate.valor}%
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-3 text-center">
-                                            {rate.isOverridden ? (
-                                                <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs rounded-full font-medium">
-                                                    Editado
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs text-slate-400">Oficial</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                {isEditing ? (
-                                                    <>
-                                                        <button
-                                                            onClick={saveEditing}
-                                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
-                                                            title="Confirmar"
-                                                        >
-                                                            <Check size={18} />
-                                                        </button>
-                                                        <button
-                                                            onClick={cancelEditing}
-                                                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                                            title="Cancelar"
-                                                        >
-                                                            <X size={18} />
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <button
-                                                            onClick={() => startEditing(rate)}
-                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                                            title="Editar"
-                                                        >
-                                                            <Pencil size={16} />
-                                                        </button>
-                                                        {rate.isOverridden && (
-                                                            <button
-                                                                onClick={() => handleDelete(rate.data)}
-                                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                                title="Restaurar/Excluir"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-    */
-
-    // Add Modal State
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [newRateData, setNewRateData] = useState({ date: '', value: '', source: 'MANUAL' });
-
-    // Batch Import State
     const [isBatchOpen, setIsBatchOpen] = useState(false);
     const [batchRange, setBatchRange] = useState({ start: '', end: '' });
     const [isImporting, setIsImporting] = useState(false);
@@ -194,16 +112,12 @@ export default function SelicManager() {
 
     const handleAddRate = (e) => {
         e.preventDefault();
-        console.log("Attempting to add rate:", newRateData);
         if (newRateData.date && newRateData.value) {
             try {
-                // Ensure format MM/YYYY
                 updateRate(newRateData.date, newRateData.value, newRateData.source);
-                console.log("Rate updated");
                 setIsAddOpen(false);
                 setNewRateData({ date: '', value: '', source: 'MANUAL' });
             } catch (err) {
-                console.error("Error adding rate:", err);
                 alert("Erro ao adicionar taxa: " + err.message);
             }
         } else {
@@ -225,16 +139,12 @@ export default function SelicManager() {
             const [startM, startY] = batchRange.start.split('/');
             const [endM, endY] = batchRange.end.split('/');
 
-            if (!startM || !startY || !endM || !endY) {
-                throw new Error("Formato inválido. Use MM/AAAA");
-            }
+            if (!startM || !startY || !endM || !endY) throw new Error("Formato inválido. Use MM/AAAA");
 
             const startDate = new Date(parseInt(startY), parseInt(startM) - 1, 1);
             const endDate = new Date(parseInt(endY), parseInt(endM) - 1, 1);
 
-            if (startDate > endDate) {
-                throw new Error("A data de início deve ser anterior à data de fim");
-            }
+            if (startDate > endDate) throw new Error("A data de início deve ser anterior à data de fim");
 
             const monthsToFetch = [];
             let currentDate = new Date(startDate);
@@ -253,7 +163,6 @@ export default function SelicManager() {
             for (let i = 0; i < monthsToFetch.length; i++) {
                 const { month, year } = monthsToFetch[i];
                 const dateKey = `${month}/${year}`;
-
                 try {
                     const value = await bcbService.fetchRateForMonth(month, year);
                     if (value) {
@@ -263,7 +172,6 @@ export default function SelicManager() {
                 } catch (err) {
                     console.error(`Error fetching for ${dateKey}:`, err);
                 }
-
                 setImportProgress(Math.round(((i + 1) / monthsToFetch.length) * 100));
             }
 
@@ -300,36 +208,26 @@ export default function SelicManager() {
                     </p>
                 </div>
 
-                {/* Search */}
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setIsBatchOpen(true)}
-                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg transition-all font-medium text-sm border border-slate-200 dark:border-slate-700"
-                    >
+                    <Button variant="secondary" onClick={() => setIsBatchOpen(true)} className="flex items-center gap-2">
                         <History size={18} />
                         Importar Intervalo
-                    </button>
-                    <button
-                        onClick={() => setIsAddOpen(true)}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg shadow-blue-500/20 transition-all font-medium text-sm"
-                    >
+                    </Button>
+                    <Button onClick={() => setIsAddOpen(true)} className="flex items-center gap-2">
                         <Plus size={18} />
                         Adicionar
-                    </button>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        <input
-                            type="text"
+                    </Button>
+                    <div className="relative w-full md:w-64">
+                        <Input
+                            icon={Search}
                             placeholder="Buscar mês/ano..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none w-full md:w-64"
                         />
                     </div>
                 </div>
             </div>
 
-            {/* Add Rate Modal */}
             {isAddOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
@@ -338,16 +236,17 @@ export default function SelicManager() {
                             <div>
                                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Mês/Ano (MM/AAAA)</label>
                                 <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder="01/2026"
-                                        value={newRateData.date}
-                                        onChange={e => setNewRateData({ ...newRateData, date: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                        required
-                                    />
-                                    <button
+                                    <div className="flex-1">
+                                        <Input
+                                            placeholder="01/2026"
+                                            value={newRateData.date}
+                                            onChange={e => setNewRateData({ ...newRateData, date: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <Button
                                         type="button"
+                                        variant="secondary"
                                         onClick={async () => {
                                             if (!newRateData.date || newRateData.date.length < 7) {
                                                 alert("Digite o Mês/Ano (MM/AAAA) primeiro.");
@@ -355,10 +254,8 @@ export default function SelicManager() {
                                             }
                                             const [m, y] = newRateData.date.split('/');
                                             if (!m || !y) return;
-
                                             try {
                                                 const { bcbService } = await import('../services/bcbService');
-                                                // Disable button state?
                                                 const val = await bcbService.fetchRateForMonth(m, y);
                                                 if (val) {
                                                     setNewRateData({ ...newRateData, value: val, source: 'BCB' });
@@ -369,45 +266,32 @@ export default function SelicManager() {
                                                 alert("Erro ao buscar no BCB.");
                                             }
                                         }}
-                                        className="px-3 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg text-slate-700 dark:text-slate-300 text-sm font-medium whitespace-nowrap"
+                                        className="whitespace-nowrap"
                                     >
                                         Buscar BCB
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Taxa (%)</label>
-                                <input
+                                <Input
                                     type="number"
                                     step="0.01"
                                     placeholder="0.90"
                                     value={newRateData.value}
                                     onChange={e => setNewRateData({ ...newRateData, value: e.target.value })}
-                                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                     required
                                 />
                             </div>
                             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsAddOpen(false)}
-                                    className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
-                                >
-                                    Salvar
-                                </button>
+                                <Button type="button" variant="secondary" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
+                                <Button type="submit">Salvar</Button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* Batch Import Modal */}
             {isBatchOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
@@ -416,24 +300,20 @@ export default function SelicManager() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Início (MM/AAAA)</label>
-                                    <input
-                                        type="text"
+                                    <Input
                                         placeholder="01/2024"
                                         value={batchRange.start}
                                         onChange={e => setBatchRange({ ...batchRange, start: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                         required
                                         disabled={isImporting}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Fim (MM/AAAA)</label>
-                                    <input
-                                        type="text"
+                                    <Input
                                         placeholder="12/2024"
                                         value={batchRange.end}
                                         onChange={e => setBatchRange({ ...batchRange, end: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                         required
                                         disabled={isImporting}
                                     />
@@ -447,33 +327,17 @@ export default function SelicManager() {
                                         <span>{importProgress}%</span>
                                     </div>
                                     <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                                        <div
-                                            className="bg-blue-600 h-full transition-all duration-300"
-                                            style={{ width: `${importProgress}%` }}
-                                        />
+                                        <div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
                                     </div>
-                                    <p className="text-[10px] text-slate-400 text-center italic">
-                                        Buscando dados no servidor do Banco Central...
-                                    </p>
+                                    <p className="text-[10px] text-slate-400 text-center italic">Buscando dados no servidor do Banco Central...</p>
                                 </div>
                             )}
 
                             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsBatchOpen(false)}
-                                    className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                    disabled={isImporting}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
-                                    disabled={isImporting}
-                                >
+                                <Button type="button" variant="secondary" onClick={() => setIsBatchOpen(false)} disabled={isImporting}>Cancelar</Button>
+                                <Button type="submit" disabled={isImporting} className="flex items-center gap-2">
                                     {isImporting ? 'Importando...' : 'Iniciar Importação'}
-                                </button>
+                                </Button>
                             </div>
                         </form>
                     </div>
@@ -485,44 +349,20 @@ export default function SelicManager() {
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <ResizableTh
-                                    width={getColumnWidth('data')}
-                                    onResize={(w) => handleResize('data', w)}
-                                    className="px-6 py-4"
-                                >Data (Mês/Ano)</ResizableTh>
-                                <ResizableTh
-                                    width={getColumnWidth('taxa')}
-                                    onResize={(w) => handleResize('taxa', w)}
-                                    className="px-6 py-4"
-                                >Taxa (%)</ResizableTh>
-                                <ResizableTh
-                                    width={getColumnWidth('status')}
-                                    onResize={(w) => handleResize('status', w)}
-                                    className="px-6 py-4 text-center"
-                                >
-                                    <div className="w-full text-center">Status</div>
-                                </ResizableTh>
-                                <ResizableTh
-                                    width={getColumnWidth('actions')}
-                                    onResize={(w) => handleResize('actions', w)}
-                                    className="px-6 py-4 text-right"
-                                >
-                                    <div className="w-full text-right">Ações</div>
-                                </ResizableTh>
+                                <ResizableTh width={getColumnWidth('data')} onResize={(w) => handleResize('data', w)} className="px-6 py-4">Data (Mês/Ano)</ResizableTh>
+                                <ResizableTh width={getColumnWidth('taxa')} onResize={(w) => handleResize('taxa', w)} className="px-6 py-4">Taxa (%)</ResizableTh>
+                                <ResizableTh width={getColumnWidth('status')} onResize={(w) => handleResize('status', w)} className="px-6 py-4 text-center"><div className="w-full text-center">Status</div></ResizableTh>
+                                <ResizableTh width={getColumnWidth('actions')} onResize={(w) => handleResize('actions', w)} className="px-6 py-4 text-right"><div className="w-full text-right">Ações</div></ResizableTh>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {filteredRates.map((rate, index) => {
+                            {paginatedRates.map((rate, index) => {
                                 if (!rate || !rate.data) return null;
-
                                 const isEditing = editingDate === rate.data;
-
                                 return (
                                     <tr key={rate.data || index} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${rate.isOverridden ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
                                         <td className="px-6 py-3 font-mono text-slate-600 dark:text-slate-300">
-                                            {rate.data.includes('/') && rate.data.split('/').length === 3
-                                                ? rate.data.substring(3)
-                                                : rate.data}
+                                            {rate.data.includes('/') && rate.data.split('/').length === 3 ? rate.data.substring(3) : rate.data}
                                         </td>
                                         <td className="px-6 py-3">
                                             {isEditing ? (
@@ -540,58 +380,29 @@ export default function SelicManager() {
                                             ) : (
                                                 <span className="font-medium text-slate-700 dark:text-slate-300">
                                                     {typeof rate.valor === 'object' && rate.valor !== null ? (rate.valor.buy || rate.valor.sell) : rate.valor}%
-
                                                 </span>
                                             )}
                                         </td>
                                         <td className="px-6 py-3 text-center">
-                                            {rate.isOverridden ? (
-                                                <span className={`px-2 py-1 text-xs rounded-full font-medium ${rate.source === 'BCB'
-                                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                                                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                                                    }`}>
-                                                    {rate.source === 'BCB' ? 'Automático BCB' : 'Editado Manual'}
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs text-slate-400">Oficial</span>
-                                            )}
+                                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${rate.source === 'BCB' || rate.source === 'OFFICIAL'
+                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                                                }`}>
+                                                {rate.source === 'BCB' || rate.source === 'OFFICIAL' ? 'Oficial' : 'Manual'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-3 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 {isEditing ? (
                                                     <>
-                                                        <button
-                                                            onClick={saveEditing}
-                                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
-                                                            title="Confirmar"
-                                                        >
-                                                            <Check size={18} />
-                                                        </button>
-                                                        <button
-                                                            onClick={cancelEditing}
-                                                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                                                            title="Cancelar"
-                                                        >
-                                                            <X size={18} />
-                                                        </button>
+                                                        <button onClick={saveEditing} className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors" title="Confirmar"><Check size={18} /></button>
+                                                        <button onClick={cancelEditing} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Cancelar"><X size={18} /></button>
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <button
-                                                            onClick={() => startEditing(rate)}
-                                                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                                            title="Editar"
-                                                        >
-                                                            <Pencil size={16} />
-                                                        </button>
+                                                        <button onClick={() => startEditing(rate)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Editar"><Pencil size={16} /></button>
                                                         {rate.isOverridden && (
-                                                            <button
-                                                                onClick={() => handleDelete(rate.data)}
-                                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                                                title="Restaurar/Excluir"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
+                                                            <button onClick={() => handleDelete(rate.data)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Restaurar/Excluir"><Trash2 size={16} /></button>
                                                         )}
                                                     </>
                                                 )}
@@ -603,6 +414,58 @@ export default function SelicManager() {
                         </tbody>
                     </table>
                 </div>
+
+                {totalPages > 1 && (
+                    <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                            Mostrando {Math.min(filteredRates.length, (currentPage - 1) * itemsPerPage + 1)} a {Math.min(filteredRates.length, currentPage * itemsPerPage)} de {filteredRates.length} taxas
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="iconSm"
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="disabled:opacity-30"
+                            >
+                                <ChevronLeft size={18} />
+                            </Button>
+
+                            <div className="flex items-center gap-1">
+                                {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                                    let pageNum;
+                                    if (totalPages <= 5) pageNum = i + 1;
+                                    else if (currentPage <= 3) pageNum = i + 1;
+                                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                                    else pageNum = currentPage - 2 + i;
+
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum
+                                                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <Button
+                                variant="ghost"
+                                size="iconSm"
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="disabled:opacity-30"
+                            >
+                                <ChevronRight size={18} />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

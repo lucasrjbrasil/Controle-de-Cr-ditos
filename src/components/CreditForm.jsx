@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Plus, X, Save, AlertCircle } from 'lucide-react';
 import { useCredits } from '../context/CreditsContext';
 import { useCompanies } from '../context/CompanyContext';
+import Button from './ui/Button';
+import Input from './ui/Input';
 
 export default function CreditForm({ onClose, initialData = null }) {
     const { addCredit, updateCredit, credits } = useCredits();
@@ -70,7 +72,7 @@ export default function CreditForm({ onClose, initialData = null }) {
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
                 <header className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Plus size={20} className="text-blue-600" />
+                        <Plus size={20} className="text-irko-blue" />
                         {initialData ? 'Editar Crédito' : 'Novo Crédito'}
                     </h3>
                     <button onClick={onClose} className="text-slate-500 hover:text-red-500 transition-colors">
@@ -93,7 +95,7 @@ export default function CreditForm({ onClose, initialData = null }) {
                                 name="empresa"
                                 value={formData.empresa}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue focus:outline-none transition-all"
                                 required
                             >
                                 <option value="">Selecione uma empresa</option>
@@ -117,7 +119,7 @@ export default function CreditForm({ onClose, initialData = null }) {
                                 name="tipoCredito"
                                 value={formData.tipoCredito}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue focus:outline-none transition-all"
                             >
                                 <option>Saldo Negativo IRPJ</option>
                                 <option>Saldo Negativo CSLL</option>
@@ -127,12 +129,10 @@ export default function CreditForm({ onClose, initialData = null }) {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Código da Receita</label>
-                            <input
-                                type="text"
+                            <Input
                                 name="codigoReceita"
                                 value={formData.codigoReceita}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                                 placeholder="Ex: 5993"
                                 required
                             />
@@ -140,12 +140,10 @@ export default function CreditForm({ onClose, initialData = null }) {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Período de Apuração</label>
-                            <input
-                                type="text"
+                            <Input
                                 name="periodoApuracao"
                                 value={formData.periodoApuracao}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                                 placeholder="MM/AAAA"
                                 required
                             />
@@ -153,13 +151,12 @@ export default function CreditForm({ onClose, initialData = null }) {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Valor Principal (R$)</label>
-                            <input
+                            <Input
                                 type="number"
                                 step="0.01"
                                 name="valorPrincipal"
                                 value={formData.valorPrincipal}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                                 placeholder="0,00"
                                 required
                             />
@@ -167,32 +164,30 @@ export default function CreditForm({ onClose, initialData = null }) {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Data de Arrecadação</label>
-                            <input
+                            <Input
                                 type="date"
                                 name="dataArrecadacao"
                                 value={formData.dataArrecadacao}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                                 required
                             />
                         </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-                        <button
-                            type="button"
+                        <Button
+                            variant="secondary"
                             onClick={onClose}
-                            className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                         >
                             Cancelar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg shadow-blue-500/30 flex items-center gap-2 transition-all"
+                            className="flex items-center gap-2"
                         >
                             <Save size={18} />
                             Salvar Crédito
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </div>
