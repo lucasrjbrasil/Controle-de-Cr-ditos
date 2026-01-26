@@ -12,7 +12,11 @@ export function AuthProvider({ children }) {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setUser(session?.user ?? null);
             setLoading(false);
+        }).catch(err => {
+            console.error("Auth session fetch failed:", err);
+            setLoading(false);
         });
+
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
