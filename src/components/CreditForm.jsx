@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Plus, X, Save, AlertCircle } from 'lucide-react';
+import { Plus, Save, AlertCircle } from 'lucide-react';
 import { useCredits } from '../context/CreditsContext';
 import { useCompanies } from '../context/CompanyContext';
+import { usePerdcomp } from '../context/PerdcompContext';
 import Button from './ui/Button';
 import Input from './ui/Input';
+import Modal from './ui/Modal';
+import { formatCNPJ } from '../utils/formatters';
 
 export default function CreditForm({ onClose, initialData = null }) {
     const { addCredit, updateCredit, credits } = useCredits();
     const { companies } = useCompanies();
+    const { perdcomps } = usePerdcomp();
     const [formData, setFormData] = useState({
         empresa: initialData?.empresa || '',
         tipoCredito: initialData?.tipoCredito || 'Saldo Negativo IRPJ',
@@ -68,129 +72,140 @@ export default function CreditForm({ onClose, initialData = null }) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
-                <header className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Plus size={20} className="text-irko-blue" />
-                        {initialData ? 'Editar Crédito' : 'Novo Crédito'}
-                    </h3>
-                    <button onClick={onClose} className="text-slate-500 hover:text-red-500 transition-colors">
-                        <X size={20} />
-                    </button>
-                </header>
+        <Modal
+            isOpen={true}
+            onClose={onClose}
+            title={
+                <span className="flex items-center gap-2">
+                    <Plus size={20} className="text-irko-blue" />
+                    {initialData ? 'Editar Crédito' : 'Novo Crédito'}
+                </span>
+            }
+            maxWidth="4xl"
+        >
+            <form onSubmit={handleSubmit} className="space-y-6">
+                {error && (
+                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {error}
+                    </div>
+                )}
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
-                    {error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm flex items-center gap-2">
-                            <AlertCircle size={16} />
-                            {error}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Empresa</label>
+                        <select
+                            name="empresa"
+                            value={formData.empresa}
+                            onChange={handleChange}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue focus:outline-none transition-all"
+                            required
+                        >
+                            <option value="">Selecione uma empresa</option>
+                            {companies.map((company) => (
+                                <option key={company.id} value={company.name}>
+                                    {company.name} ({formatCNPJ(company.cnpj)})
+                                </option>
+                            ))}
+                        </select>
+                        {companies.length === 0 && (
+                            <p className="text-xs text-amber-500 mt-1 flex items-center gap-1">
+                                <AlertCircle size={12} />
+                                Nenhuma empresa cadastrada. Vá até a aba Empresas.
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Tipo de Crédito</label>
+                        <select
+                            name="tipoCredito"
+                            value={formData.tipoCredito}
+                            onChange={handleChange}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue focus:outline-none transition-all"
+                        >
+                            <option>Saldo Negativo IRPJ</option>
+                            <option>Saldo Negativo CSLL</option>
+                            <option>Pagamento a Maior</option>
+                        </select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Código da Receita</label>
+                        <Input
+                            name="codigoReceita"
+                            value={formData.codigoReceita}
+                            onChange={handleChange}
+                            placeholder="Ex: 5993"
+                            required
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Período de Apuração</label>
+                        <Input
+                            name="periodoApuracao"
+                            value={formData.periodoApuracao}
+                            onChange={handleChange}
+                            placeholder="MM/AAAA"
+                            required
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Valor Principal (R$)</label>
+                        <Input
+                            type="number"
+                            step="0.01"
+                            name="valorPrincipal"
+                            value={formData.valorPrincipal}
+                            onChange={handleChange}
+                            placeholder="0,00"
+                            required
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Data de Arrecadação</label>
+                        <Input
+                            type="date"
+                            name="dataArrecadacao"
+                            value={formData.dataArrecadacao}
+                            onChange={handleChange}
+                            required
+                        />
+                    </div>
+
+                    {initialData && (
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400 font-bold">Pedido de Restituição</label>
+                            <div className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono text-sm h-[42px] flex items-center">
+                                {(() => {
+                                    const linked = perdcomps.find(p => p.creditId === initialData.id && p.isRestituicao);
+                                    return linked ? linked.numero : 'Nenhuma PERDCOMP vinculada';
+                                })()}
+                            </div>
                         </div>
                     )}
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Empresa</label>
-                            <select
-                                name="empresa"
-                                value={formData.empresa}
-                                onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue focus:outline-none transition-all"
-                                required
-                            >
-                                <option value="">Selecione uma empresa</option>
-                                {companies.map((company) => (
-                                    <option key={company.id} value={company.name}>
-                                        {company.name} ({company.cnpj})
-                                    </option>
-                                ))}
-                            </select>
-                            {companies.length === 0 && (
-                                <p className="text-xs text-amber-500 mt-1 flex items-center gap-1">
-                                    <AlertCircle size={12} />
-                                    Nenhuma empresa cadastrada. Vá até a aba Empresas.
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Tipo de Crédito</label>
-                            <select
-                                name="tipoCredito"
-                                value={formData.tipoCredito}
-                                onChange={handleChange}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue focus:outline-none transition-all"
-                            >
-                                <option>Saldo Negativo IRPJ</option>
-                                <option>Saldo Negativo CSLL</option>
-                                <option>Pagamento a Maior</option>
-                            </select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Código da Receita</label>
-                            <Input
-                                name="codigoReceita"
-                                value={formData.codigoReceita}
-                                onChange={handleChange}
-                                placeholder="Ex: 5993"
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Período de Apuração</label>
-                            <Input
-                                name="periodoApuracao"
-                                value={formData.periodoApuracao}
-                                onChange={handleChange}
-                                placeholder="MM/AAAA"
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Valor Principal (R$)</label>
-                            <Input
-                                type="number"
-                                step="0.01"
-                                name="valorPrincipal"
-                                value={formData.valorPrincipal}
-                                onChange={handleChange}
-                                placeholder="0,00"
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Data de Arrecadação</label>
-                            <Input
-                                type="date"
-                                name="dataArrecadacao"
-                                value={formData.dataArrecadacao}
-                                onChange={handleChange}
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-                        <Button
-                            variant="secondary"
-                            onClick={onClose}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            type="submit"
-                            className="flex items-center gap-2"
-                        >
-                            <Save size={18} />
-                            Salvar Crédito
-                        </Button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800 sticky bottom-0 bg-white dark:bg-slate-900">
+                    <Button
+                        variant="secondary"
+                        onClick={onClose}
+                        type="button"
+                    >
+                        Cancelar
+                    </Button>
+                    <Button
+                        type="submit"
+                        className="flex items-center gap-2"
+                    >
+                        <Save size={18} />
+                        Salvar Crédito
+                    </Button>
+                </div>
+            </form>
+        </Modal>
     );
 }

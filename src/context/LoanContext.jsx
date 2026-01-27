@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { useAuth } from './AuthContext';
 
 const LoanContext = createContext();
 
 export function LoanProvider({ children }) {
     const [loans, setLoans] = useState([]);
+    const { user } = useAuth();
 
     useEffect(() => {
         fetchLoans();
@@ -28,9 +30,12 @@ export function LoanProvider({ children }) {
 
     const addLoan = async (newLoan) => {
         try {
+            const userName = user?.user_metadata?.full_name || user?.email || 'Usuário Desconhecido';
             const loanToSave = {
                 ...newLoan,
                 payments: [],
+                modified_by: userName,
+                modified_at: new Date().toISOString(),
             };
 
             const { data, error } = await supabase
@@ -64,9 +69,16 @@ export function LoanProvider({ children }) {
 
     const updateLoan = async (id, updatedFields) => {
         try {
+            const userName = user?.user_metadata?.full_name || user?.email || 'Usuário Desconhecido';
+            const fieldsWithModification = {
+                ...updatedFields,
+                modified_by: userName,
+                modified_at: new Date().toISOString(),
+            };
+
             const { data, error } = await supabase
                 .from('loans')
-                .update(updatedFields)
+                .update(fieldsWithModification)
                 .eq('id', id)
                 .select()
                 .single();

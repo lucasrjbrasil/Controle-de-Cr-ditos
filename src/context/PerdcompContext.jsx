@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { useAuth } from './AuthContext';
 
 const PerdcompContext = createContext();
 
 export function PerdcompProvider({ children }) {
     const [perdcomps, setPerdcomps] = useState([]);
+    const { user } = useAuth();
 
     useEffect(() => {
         fetchPerdcomps();
@@ -26,9 +28,16 @@ export function PerdcompProvider({ children }) {
 
     const addPerdcomp = async (perdcomp) => {
         try {
+            const userName = user?.user_metadata?.full_name || user?.email || 'Usuário Desconhecido';
+            const perdcompToSave = {
+                ...perdcomp,
+                modified_by: userName,
+                modified_at: new Date().toISOString(),
+            };
+
             const { data, error } = await supabase
                 .from('perdcomps')
-                .insert([perdcomp])
+                .insert([perdcompToSave])
                 .select()
                 .single();
 
@@ -42,9 +51,16 @@ export function PerdcompProvider({ children }) {
 
     const updatePerdcomp = async (id, updatedData) => {
         try {
+            const userName = user?.user_metadata?.full_name || user?.email || 'Usuário Desconhecido';
+            const fieldsWithModification = {
+                ...updatedData,
+                modified_by: userName,
+                modified_at: new Date().toISOString(),
+            };
+
             const { data, error } = await supabase
                 .from('perdcomps')
-                .update(updatedData)
+                .update(fieldsWithModification)
                 .eq('id', id)
                 .select()
                 .single();

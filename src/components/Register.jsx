@@ -5,13 +5,15 @@ import logo from '../assets/logo.png';
 
 const Register = ({ onLoginClick }) => {
     // ... existing ...
-    const [email, setEmail] = useState('');
     const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
+    const [registerMethod, setRegisterMethod] = useState('email'); // 'email' or 'phone'
     const { register } = useAuth();
 
     const handleSubmit = async (e) => {
@@ -27,7 +29,7 @@ const Register = ({ onLoginClick }) => {
         setIsLoading(true);
 
         try {
-            await register(email, password, name);
+            await register(registerMethod === 'email' ? email : null, password, name, registerMethod === 'phone' ? phone : null);
             setIsSuccess(true);
         } catch (err) {
             setError(err.message || 'Falha ao criar conta.');
@@ -68,7 +70,9 @@ const Register = ({ onLoginClick }) => {
                             <div className="space-y-2">
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Conta criada com sucesso!</h3>
                                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                                    Enviamos um link de confirmação para sua caixa de entrada.
+                                    {registerMethod === 'email'
+                                        ? 'Enviamos um link de confirmação para sua caixa de entrada.'
+                                        : 'Sua conta foi criada com sucesso!'}
                                 </p>
                             </div>
                             <button
@@ -79,89 +83,123 @@ const Register = ({ onLoginClick }) => {
                             </button>
                         </div>
                     ) : (
-                        <form className="space-y-4" onSubmit={handleSubmit}>
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                    Nome Completo
-                                </label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
-                                    placeholder="Seu nome"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        <>
+                            {/* Method Selector */}
+                            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-6">
+                                <button
+                                    onClick={() => setRegisterMethod('email')}
+                                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${registerMethod === 'email' ? 'bg-white dark:bg-slate-700 shadow-sm text-irko-blue' : 'text-slate-500'}`}
+                                >
                                     Email
-                                </label>
-                                <input
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
-                                    placeholder="usuario@irko.com.br"
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                        Senha
-                                    </label>
-                                    <input
-                                        type="password"
-                                        required
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                        Confirmar
-                                    </label>
-                                    <input
-                                        type="password"
-                                        required
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
-                                    />
-                                </div>
-                            </div>
-
-                            {error && (
-                                <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-3 border border-red-200 dark:border-red-800">
-                                    <p className="text-xs font-medium text-red-800 dark:text-red-300">
-                                        {error}
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="pt-2">
+                                </button>
                                 <button
-                                    type="submit"
-                                    disabled={isLoading}
-                                    className="w-full flex justify-center items-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-irko-blue hover:bg-irko-blue-hover transition-all"
+                                    onClick={() => setRegisterMethod('phone')}
+                                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${registerMethod === 'phone' ? 'bg-white dark:bg-slate-700 shadow-sm text-irko-blue' : 'text-slate-500'}`}
                                 >
-                                    {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Criar minha conta'}
+                                    Celular
                                 </button>
                             </div>
 
-                            <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4 text-center">
-                                <button
-                                    onClick={(e) => { e.preventDefault(); onLoginClick(); }}
-                                    className="text-xs font-bold text-irko-orange hover:opacity-80 transition-all"
-                                >
-                                    Já possui acesso? Entrar agora
-                                </button>
-                            </div>
-                        </form>
+                            <form className="space-y-4" onSubmit={handleSubmit}>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                        Nome Completo
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
+                                        placeholder="Seu nome"
+                                    />
+                                </div>
+
+                                {registerMethod === 'email' ? (
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Email Corporativo
+                                        </label>
+                                        <input
+                                            type="email"
+                                            required
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
+                                            placeholder="usuario@irko.com.br"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Número do Celular
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            required
+                                            value={phone}
+                                            onChange={(e) => setPhone(e.target.value)}
+                                            className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
+                                            placeholder="(11) 99999-9999"
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Senha
+                                        </label>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Confirmar
+                                        </label>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                {error && (
+                                    <div className="rounded-xl bg-red-50 dark:bg-red-900/20 p-3 border border-red-200 dark:border-red-800">
+                                        <p className="text-xs font-medium text-red-800 dark:text-red-300">
+                                            {error}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="pt-2">
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className="w-full flex justify-center items-center py-3 px-6 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-irko-blue hover:bg-irko-blue-hover transition-all"
+                                    >
+                                        {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Criar minha conta'}
+                                    </button>
+                                </div>
+
+                                <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4 text-center">
+                                    <button
+                                        onClick={(e) => { e.preventDefault(); onLoginClick(); }}
+                                        className="text-xs font-bold text-irko-orange hover:opacity-80 transition-all"
+                                    >
+                                        Já possui acesso? Entrar agora
+                                    </button>
+                                </div>
+                            </form>
+                        </>
                     )}
                 </div>
             </div>

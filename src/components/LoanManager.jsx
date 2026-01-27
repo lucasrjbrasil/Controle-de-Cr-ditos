@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Search, Pencil, Trash2, Landmark, Calendar, Percent, ChevronDown, ChevronUp, CreditCard, History } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Landmark, Calendar, Percent, ChevronDown, ChevronUp, CreditCard, History, Filter, Download } from 'lucide-react';
+import { exportToExcel } from '../utils/exportUtils';
+import Modal from './ui/Modal';
 import { useLoans } from '../context/LoanContext';
 import { useCompanies } from '../context/CompanyContext';
 import { formatCurrency, formatCurrencyByCode } from '../utils/formatters';
@@ -25,6 +27,7 @@ export default function LoanManager() {
         moeda: 100,
         taxa: 150,
         saldo: 150,
+        modified_by: 180,
         actions: 120
     });
     const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
@@ -35,8 +38,11 @@ export default function LoanManager() {
     const [detailTab, setDetailTab] = useState('entries'); // 'entries' or 'evolution'
     const [searchTerm, setSearchTerm] = useState('');
     const [referenceMonth, setReferenceMonth] = useState(format(new Date(), 'yyyy-MM'));
+    const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
     const [calculatedBalances, setCalculatedBalances] = useState({}); // { loanId: { balanceOrg, balanceBrl, isLiquidated, rate } }
     const [loadingRates, setLoadingRates] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [exportOptions, setExportOptions] = useState({ company: '', competency: '' });
 
     // Fetch rates and calculate balances when loans or referenceMonth changes
     React.useEffect(() => {
@@ -56,9 +62,8 @@ export default function LoanManager() {
                 // Find global min start date to fetch enough history
                 let minStart = refDate;
                 loans.forEach(l => {
-                    const s = parseISO(l.dataInicio);
-                    if (isBefore(s, minStart)) minStart = s;
-                    // If loan starts after refDate, we still need to process it (it will show as future/empty)
+                    const s = new Date(l.dataInicio);
+                    if (isValid(s) && isBefore(s, minStart)) minStart = s;
                 });
 
                 const ratesMap = {}; // { USD: [...] }
@@ -67,6 +72,7 @@ export default function LoanManager() {
                 if (currencies.length > 0) {
                     await Promise.all(currencies.map(async (curr) => {
                         try {
+                            if (!isValid(minStart)) return;
                             const startStr = format(minStart, 'dd/MM/yyyy');
                             const endStr = format(refDate, 'dd/MM/yyyy');
                             const history = await bcbService.fetchExchangeRatesWithHistory(curr, startStr, endStr);
@@ -80,13 +86,17 @@ export default function LoanManager() {
 
                 // 3. Calculate Evolution for each loan
                 const balances = {};
-                loans.forEach(loan => {
+                for (const loan of loans) {
                     try {
-                        // If loan starts after reference date, balance is 0 or arguably doesn't exist yet. 
-                        // But let's show 0.
-                        if (isAfter(parseISO(loan.dataInicio), refDate)) {
+                        const loanStart = new Date(loan.dataInicio);
+                        if (!isValid(loanStart)) {
                             balances[loan.id] = { balanceOrg: 0, balanceBrl: 0, isLiquidated: false, rate: 1 };
-                            return;
+                            continue;
+                        }
+
+                        if (isAfter(loanStart, refDate)) {
+                            balances[loan.id] = { balanceOrg: 0, balanceBrl: 0, isLiquidated: false, rate: 1 };
+                            continue;
                         }
 
                         // Get rates for this loan's currency
@@ -97,40 +107,33 @@ export default function LoanManager() {
 
                         if (!evolution || evolution.length === 0) {
                             balances[loan.id] = { balanceOrg: 0, balanceBrl: 0, isLiquidated: false, rate: 1 };
-                            return;
+                            continue;
                         }
 
                         const lastMonth = evolution[evolution.length - 1];
-                        if (!lastMonth || !lastMonth.dailyLogs || lastMonth.dailyLogs.length === 0) {
-                            balances[loan.id] = { balanceOrg: 0, balanceBrl: 0, isLiquidated: false, rate: 1 };
-                            return;
-                        }
+                        const lastLog = lastMonth?.dailyLogs?.[lastMonth.dailyLogs.length - 1];
 
-                        const lastLog = lastMonth.dailyLogs[lastMonth.dailyLogs.length - 1];
                         if (!lastLog) {
                             balances[loan.id] = { balanceOrg: 0, balanceBrl: 0, isLiquidated: false, rate: 1 };
-                            return;
+                            continue;
                         }
 
                         // Total Balance = Principal + Interest (Accumulated)
-                        const totalBalanceOrg = lastLog.principalOrg + lastLog.interestOrgAcc;
-                        const totalBalanceBrl = lastLog.totalBrl;
-                        const rate = lastLog.rate;
-
-                        // Liquidated logic: If Total Balance near zero.
-                        const isLiquidated = totalBalanceOrg <= 0.01;
+                        const totalBalanceOrg = (lastLog.principalOrg || 0) + (lastLog.interestOrgAcc || 0);
+                        const totalBalanceBrl = lastLog.totalBrl || 0;
+                        const rate = lastLog.rate || 1;
 
                         balances[loan.id] = {
                             balanceOrg: totalBalanceOrg,
                             balanceBrl: totalBalanceBrl,
-                            isLiquidated,
+                            isLiquidated: totalBalanceOrg <= 0.01,
                             rate
                         };
                     } catch (innerErr) {
                         console.error('Error calculating loan', loan.id, innerErr);
                         balances[loan.id] = { balanceOrg: 0, balanceBrl: 0, isLiquidated: false, rate: 1 };
                     }
-                });
+                }
 
                 setCalculatedBalances(balances);
             } catch (err) {
@@ -181,9 +184,18 @@ export default function LoanManager() {
         setEditingPayment(null);
     };
 
-    const filteredLoans = loans.filter(loan =>
-        loan.instituicao.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredLoans = loans.filter(loan => {
+        // Text Search
+        const matchesSearch = loan.instituicao.toLowerCase().includes(searchTerm.toLowerCase());
+
+        // Available Balance Filter
+        if (showOnlyAvailable) {
+            const snapshot = getLoanSnapshot(loan.id);
+            if (snapshot.isLiquidated) return false;
+        }
+
+        return matchesSearch;
+    });
 
     const getLoanSnapshot = (loanId) => {
         return calculatedBalances[loanId] || { balanceOrg: 0, balanceBrl: 0, isLiquidated: false, rate: 1 };
@@ -193,15 +205,144 @@ export default function LoanManager() {
         return acc + getLoanSnapshot(loan.id).balanceBrl;
     }, 0);
 
+    const handleExportClick = () => {
+        setExportOptions({
+            company: '',
+            competency: referenceMonth
+        });
+        setIsExportModalOpen(true);
+    };
+
+    const confirmExport = async () => {
+        const targetLoans = loans.filter(l => {
+            const companyName = companies.find(c => c.id === l.empresaId)?.name || '';
+            if (exportOptions.company && companyName !== exportOptions.company) return false;
+            return true;
+        });
+
+        if (targetLoans.length === 0) {
+            alert("Nenhum empréstimo encontrado.");
+            return;
+        }
+
+        const sheets = [];
+
+        setLoadingRates(true);
+        try {
+            const exportSnapshots = {};
+
+            for (const loan of targetLoans) {
+                try {
+                    const compDate = parseISO(exportOptions.competency + '-01');
+                    const start = format(parseISO(loan.dataInicio), 'dd/MM/yyyy');
+                    const end = format(endOfMonth(compDate), 'dd/MM/yyyy');
+
+                    let rates = [];
+                    if (loan.moeda !== 'BRL') {
+                        rates = await bcbService.fetchExchangeRatesForRange(start, end, loan.moeda);
+                    }
+
+                    const evolution = calculateLoanEvolution(loan, rates, endOfMonth(compDate));
+
+                    // Extract snapshot for the summary sheet
+                    const lastMonth = evolution[evolution.length - 1];
+                    const lastLog = lastMonth?.dailyLogs[lastMonth.dailyLogs.length - 1];
+
+                    exportSnapshots[loan.id] = {
+                        balanceOrg: (lastLog?.principalOrg || 0) + (lastLog?.interestOrgAcc || 0),
+                        balanceBrl: lastLog?.totalBrl || 0,
+                        isLiquidated: ((lastLog?.principalOrg || 0) + (lastLog?.interestOrgAcc || 0)) <= 0.01
+                    };
+
+                    const sheetData = evolution.flatMap(month => month.dailyLogs).map(log => ({
+                        'Data': log.date,
+                        [`Principal (${loan.moeda})`]: log.principalOrg,
+                        [`Juros (${loan.moeda})`]: log.dailyInterest,
+                        [`Juros Acum. (${loan.moeda})`]: log.interestOrgAcc,
+                        'Câmbio': log.rate,
+                        'Var. Cambial Princ. (BRL)': log.variationPrincipal,
+                        'Var. Cambial Juros (BRL)': log.variationInterest,
+                        'Principal (BRL)': log.principalBrl,
+                        'Juros (BRL)': log.dailyInterestBrl,
+                        'Juros Acum. (BRL)': log.interestBrl,
+                        'Total (BRL)': log.totalBrl
+                    }));
+
+                    sheets.push({
+                        name: `Ctr ${loan.numeroContrato || loan.id}`.substring(0, 30),
+                        data: sheetData,
+                        metadata: {
+                            title: `DEMONSTRATIVO DE EVOLUÇÃO - ${loan.instituicao.toUpperCase()}`,
+                            headerInfo: [
+                                { label: 'Empresa:', value: companies.find(c => c.id === loan.empresaId)?.name || 'N/A' },
+                                { label: 'Instituição:', value: loan.instituicao },
+                                { label: 'Contrato:', value: loan.numeroContrato || 'S/N' },
+                                { label: 'Moeda:', value: loan.moeda },
+                                { label: 'Valor Original:', value: formatCurrencyByCode(loan.valorOriginal, loan.moeda) },
+                                { label: 'Data Início:', value: new Date(loan.dataInicio).toLocaleDateString() },
+                                { label: 'Taxa Juros:', value: `${loan.taxa}% ${loan.periodoTaxa} (${loan.tipoJuros})` },
+                                { label: `Saldo em ${exportOptions.competency}:`, value: formatCurrency(exportSnapshots[loan.id].balanceBrl) }
+                            ]
+                        }
+                    });
+
+                } catch (err) {
+                    console.error(`Error processing loan ${loan.id} for export`, err);
+                }
+            }
+
+            const summaryData = targetLoans.map(loan => {
+                const snapshot = exportSnapshots[loan.id] || { balanceOrg: 0, balanceBrl: 0, isLiquidated: false };
+                return {
+                    'Empresa': companies.find(c => c.id === loan.empresaId)?.name || 'N/A',
+                    'Instituição': loan.instituicao,
+                    'Contrato': loan.numeroContrato || 'S/N',
+                    'Moeda': loan.moeda,
+                    'Valor Original': loan.valorOriginal,
+                    'Taxa': `${loan.taxa}% ${loan.periodoTaxa}`,
+                    [`Saldo em ${exportOptions.competency} (${loan.moeda})`]: snapshot.balanceOrg,
+                    [`Saldo em ${exportOptions.competency} (BRL)`]: snapshot.balanceBrl,
+                    'Status': snapshot.isLiquidated ? 'Liquidado' : 'Ativo',
+                    'Modificado por': loan.modified_by ? `${loan.modified_by} (${new Date(loan.modified_at).toLocaleDateString()})` : ''
+                };
+            });
+
+            const companyName = exportOptions.company ? exportOptions.company.replace(/[^a-zA-Z0-9]/g, '_') : 'Todas';
+            await exportToExcel(summaryData, `Relatorio_Emprestimos_${companyName}_${exportOptions.competency}.xlsx`, {
+                title: 'RESUMO DE EMPRÉSTIMOS E FINANCIAMENTOS',
+                headerInfo: [
+                    { label: 'Empresa:', value: exportOptions.company || 'Todas' },
+                    { label: 'Competência:', value: exportOptions.competency },
+                    { label: 'Data Geração:', value: new Date().toLocaleDateString() }
+                ]
+            }, sheets);
+            setIsExportModalOpen(false);
+        } catch (error) {
+            console.error("Export error:", error);
+            alert("Erro ao gerar exportação.");
+        } finally {
+            setLoadingRates(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Gerenciamento de Empréstimos</h2>
-                    <p className="text-slate-500 dark:text-slate-400">Acompanhe e organize seus empréstimos e pagamentos.</p>
+                    <p className="text-slate-500 dark:text-slate-400">Acompanhe seus contratos de mútuo e financiamentos.</p>
                 </div>
 
                 <div className="flex gap-2">
+                    <Button
+                        variant="success"
+                        onClick={handleExportClick}
+                        disabled={loans.length === 0}
+                        className="gap-2"
+                    >
+                        <Download size={20} />
+                        Exportar Excel
+                    </Button>
                     <Button
                         onClick={() => setIsFormOpen(true)}
                         className="gap-2"
@@ -212,8 +353,9 @@ export default function LoanManager() {
                 </div>
             </div>
 
+
             {/* Loans Summary Card */}
-            <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-br from-irko-blue via-[#004a8d] to-irko-orange/80 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div>
@@ -228,23 +370,49 @@ export default function LoanManager() {
 
             {/* Filters / Search Bar */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-center gap-4">
-                <div className="flex items-center gap-2">
-                    <Calendar size={20} className="text-slate-400" />
-                    <input
-                        type="month"
-                        value={referenceMonth}
-                        onChange={(e) => setReferenceMonth(e.target.value)}
-                        className="px-4 py-2 border-none rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none h-10"
-                    />
-                </div>
                 <div className="relative flex-1 w-full">
                     <Input
                         icon={Search}
-                        placeholder="Pesquisar por Devedor/Credor..."
+                        placeholder="Pesquisar por Banco/Credor..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={showOnlyAvailable}
+                                onChange={(e) => setShowOnlyAvailable(e.target.checked)}
+                            />
+                            <div className="w-10 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-irko-orange rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-irko-orange"></div>
+                        </div>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap group-hover:text-irko-blue transition-colors">
+                            Somente com Saldo
+                        </span>
+                    </label>
+
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden md:block"></div>
+
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                            Competência:
+                        </label>
+                        <input
+                            type="month"
+                            className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue outline-none text-sm"
+                            value={referenceMonth}
+                            onChange={(e) => setReferenceMonth(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <Button variant="secondary" size="icon" className="text-slate-500">
+                    <Filter size={20} />
+                </Button>
             </div>
 
             {/* Loans Table */}
@@ -296,6 +464,11 @@ export default function LoanManager() {
                                     >
                                         <div className="w-full text-right">Saldo Devedor</div>
                                     </ResizableTh>
+                                    <ResizableTh
+                                        width={getColumnWidth('modified_by')}
+                                        onResize={(w) => handleResize('modified_by', w)}
+                                        className="px-6 py-4 font-semibold"
+                                    >Modificado por:</ResizableTh>
                                     <ResizableTh
                                         width={getColumnWidth('actions')}
                                         onResize={(w) => handleResize('actions', w)}
@@ -385,6 +558,16 @@ export default function LoanManager() {
                                                         )}
                                                     </div>
                                                 </td>
+                                                <td className="px-6 py-4 text-slate-600 dark:text-slate-300 text-sm">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium text-xs">{loan.modified_by || 'N/A'}</span>
+                                                        {loan.modified_at && (
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                                                {new Date(loan.modified_at).toLocaleDateString('pt-BR')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-6 py-4 text-center">
 
                                                     <div className="flex items-center justify-center gap-2">
@@ -421,7 +604,7 @@ export default function LoanManager() {
                                             {
                                                 expandedId === loan.id && (
                                                     <tr>
-                                                        <td colSpan={7} className="px-6 py-6 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800 shadow-inner">
+                                                        <td colSpan={8} className="px-6 py-6 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800 shadow-inner">
                                                             <div className="flex items-center gap-4 mb-6 border-b border-slate-200 dark:border-slate-700 pb-2">
                                                                 <button
                                                                     onClick={() => setDetailTab('entries')}
@@ -552,8 +735,9 @@ export default function LoanManager() {
                             </tbody>
                         </table>
                     </div>
-                )}
-            </div>
+                )
+                }
+            </div >
 
             {
                 isFormOpen && (
@@ -573,6 +757,52 @@ export default function LoanManager() {
                     />
                 )
             }
+
+            <Modal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                title="Exportar Relatório de Empréstimos"
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Empresa
+                        </label>
+                        <select
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-irko-blue outline-none"
+                            value={exportOptions.company}
+                            onChange={(e) => setExportOptions({ ...exportOptions, company: e.target.value })}
+                        >
+                            <option value="">Todas as Empresas</option>
+                            {companies.map(company => (
+                                <option key={company.id} value={company.name}>{company.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Competência de Referência
+                        </label>
+                        <input
+                            type="month"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-irko-blue outline-none"
+                            value={exportOptions.competency}
+                            onChange={(e) => setExportOptions({ ...exportOptions, competency: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4">
+                        <Button variant="ghost" onClick={() => setIsExportModalOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button variant="success" onClick={confirmExport} disabled={loadingRates}>
+                            <Download size={18} className="mr-2" />
+                            {loadingRates ? 'Gerando...' : 'Gerar Relatório'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div >
     );
 }

@@ -43,6 +43,8 @@ create table if not exists "loans" (
   "periodicidadeCapitalizacao" text,
   "prazo" integer,
   "payments" jsonb default '[]'::jsonb,
+  "modified_by" text,
+  "modified_at" timestamptz,
   "createdAt" timestamptz default now()
 );
 
@@ -61,6 +63,8 @@ create table if not exists "perdcomps" (
   "valorTotal" numeric,
   "valorCompensado" numeric, -- Appears in logic
   "status" text,
+  "modified_by" text,
+  "modified_at" timestamptz,
   "createdAt" timestamptz default now()
 );
 
@@ -75,3 +79,41 @@ create policy "Enable all access" on "companies" for all using (true) with check
 create policy "Enable all access" on "credits" for all using (true) with check (true);
 create policy "Enable all access" on "loans" for all using (true) with check (true);
 create policy "Enable all access" on "perdcomps" for all using (true) with check (true);
+
+-- Exchange Configuration Table
+create table if not exists "exchange_config" (
+  "symbol" text primary key,
+  "buySeriesId" integer,
+  "sellSeriesId" integer,
+  "updatedAt" timestamptz default now()
+);
+
+-- Exchange Rate Overrides/Cache Table
+create table if not exists "exchange_overrides" (
+  "id" uuid primary key default uuid_generate_v4(),
+  "currency" text not null,
+  "date" text not null, -- Storing as text to avoid timezone issues (YYYY-MM-DD)
+  "buyValue" numeric,
+  "sellValue" numeric,
+  "source" text default 'MANUAL', -- 'MANUAL' or 'BCB'
+  "createdAt" timestamptz default now(),
+  unique("currency", "date")
+);
+
+-- Selic Overrides/Cache Table
+create table if not exists "selic_overrides" (
+  "id" uuid primary key default uuid_generate_v4(),
+  "date" text not null unique, -- Storing as text (DD/MM/YYYY) or (YYYY-MM-DD) - APP uses DD/MM/YYYY for Selic currently
+  "value" numeric,
+  "source" text default 'MANUAL',
+  "createdAt" timestamptz default now()
+);
+
+-- RLS for new tables
+alter table "exchange_config" enable row level security;
+alter table "exchange_overrides" enable row level security;
+alter table "selic_overrides" enable row level security;
+
+create policy "Enable all access" on "exchange_config" for all using (true) with check (true);
+create policy "Enable all access" on "exchange_overrides" for all using (true) with check (true);
+create policy "Enable all access" on "selic_overrides" for all using (true) with check (true);

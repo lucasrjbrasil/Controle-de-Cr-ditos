@@ -39,7 +39,10 @@ async function run() {
             }
 
             const sql = fs.readFileSync(absolutePath, 'utf-8');
-            await client.query(sql);
+            const res = await client.query(sql);
+            if (res.rows && res.rows.length > 0) {
+                console.table(res.rows);
+            }
             console.log('✅ SQL executed successfully!');
         } else {
             const res = await client.query('SELECT NOW() as now, current_database() as db');

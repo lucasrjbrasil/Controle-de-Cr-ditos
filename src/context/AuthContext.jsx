@@ -27,21 +27,19 @@ export function AuthProvider({ children }) {
         return () => subscription.unsubscribe();
     }, []);
 
-    const login = async (email, password, rememberMe) => {
-        // Supabase persists the session by default in localStorage.
-        // If we strictly wanted to avoid it based on "rememberMe", we'd need to configure the client,
-        // but typically web apps stay logged in unless explicit logout.
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+    const login = async (identifier, password, rememberMe) => {
+        // identifier can be email or phone
+        const isEmail = identifier.includes('@');
+        const loginPayload = isEmail ? { email: identifier, password } : { phone: identifier.startsWith('+') ? identifier : `+55${identifier.replace(/\D/g, '')}`, password };
+
+        const { data, error } = await supabase.auth.signInWithPassword(loginPayload);
 
         if (error) throw error;
         return { user: data.user, error: null };
     };
 
-    const register = async (email, password, name) => {
-        const { data, error } = await supabase.auth.signUp({
+    const register = async (email, password, name, phone) => {
+        const signUpOptions = {
             email,
             password,
             options: {
@@ -49,7 +47,13 @@ export function AuthProvider({ children }) {
                     full_name: name,
                 }
             }
-        });
+        };
+
+        if (phone) {
+            signUpOptions.phone = phone.startsWith('+') ? phone : `+55${phone.replace(/\D/g, '')}`;
+        }
+
+        const { data, error } = await supabase.auth.signUp(signUpOptions);
 
         if (error) throw error;
         return { user: data.user, error: null };

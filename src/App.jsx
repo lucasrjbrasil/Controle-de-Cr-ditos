@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { CreditsProvider } from './context/CreditsContext';
 import Sidebar from './components/Sidebar';
@@ -15,10 +15,15 @@ import LoanManager from './components/LoanManager';
 import ExchangeRateManager from './components/ExchangeRateManager';
 import ErrorBoundary from './components/ErrorBoundary';
 import Home from './components/Home';
+import OutrasTaxasManager from './components/OutrasTaxasManager';
 import Login from './components/Login';
 import Register from './components/Register';
 import ProfileManager from './components/ProfileManager';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import InstallmentManager from './components/InstallmentManager';
+import LeaseManager from './components/LeaseManager';
+import { bcbService } from './services/bcbService';
+import { useToast } from './context/ToastContext';
 
 
 function Dashboard() {
@@ -45,8 +50,14 @@ function Dashboard() {
             <LoanManager />
           </ErrorBoundary>
         );
+      case 'installments':
+        return <InstallmentManager />;
+      case 'leases':
+        return <LeaseManager />;
       case 'exchange':
         return <ExchangeRateManager />;
+      case 'outras-taxas':
+        return <OutrasTaxasManager />;
       case 'profile':
         return <ProfileManager />;
       default:
@@ -95,7 +106,7 @@ function Dashboard() {
           </div>
         </header>
 
-        <div className={`flex-1 w-full ${activeTab === 'home' ? 'overflow-hidden' : 'overflow-y-auto'} p-8`}>
+        <div className={`flex-1 w-full ${activeTab === 'home' ? 'overflow-hidden p-6' : 'overflow-y-auto p-8'}`}>
           {renderContent()}
         </div>
       </main>
@@ -107,6 +118,23 @@ function Dashboard() {
 function AppContent() {
   const { user, loading } = useAuth();
   const [currentView, setCurrentView] = useState('login');
+  const { success } = useToast();
+
+  useEffect(() => {
+    if (user) {
+      const performSync = async () => {
+        try {
+          const result = await bcbService.syncDailyExchangeRates();
+          if (result && result.status === 'success') {
+            success(`Taxas cambiais sincronizadas para ${result.currenciesSynced} moedas.`);
+          }
+        } catch (error) {
+          console.error('Failed to sync exchange rates:', error);
+        }
+      };
+      performSync();
+    }
+  }, [user, success]);
 
   if (loading) {
     return (
@@ -126,20 +154,24 @@ function AppContent() {
   return <Dashboard />;
 }
 
+import { ToastProvider } from './context/ToastContext';
+
 function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <CreditsProvider>
-          <PerdcompProvider>
-            <CompanyProvider>
-              <LoanProvider>
-                <AppContent />
-              </LoanProvider>
-            </CompanyProvider>
-          </PerdcompProvider>
-        </CreditsProvider>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <CreditsProvider>
+            <PerdcompProvider>
+              <CompanyProvider>
+                <LoanProvider>
+                  <AppContent />
+                </LoanProvider>
+              </CompanyProvider>
+            </PerdcompProvider>
+          </CreditsProvider>
+        </AuthProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

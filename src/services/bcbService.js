@@ -4,15 +4,22 @@ const BCB_SELIC_MONTH_URL = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/
 const CACHE_KEY = 'selic_cache';
 const CURRENCIES_KEY = 'exchange_managed_currencies';
 const CACHE_duration = 24 * 60 * 60 * 1000; // 24 hours
-const HIST_CACHE_PREFIX = 'hist_exchange_';
+const HIST_CACHE_PREFIX = 'hist_exchange_v3_';
+
+const INDICATORS_CONFIG_KEY = 'indicator_configs_cache';
+
+const DEFAULT_INDICATORS = {
+    'IPCA': { seriesId: 433, label: 'IPCA' },
+    'IGPM': { seriesId: 189, label: 'IGP-M' }
+};
 
 const DEFAULT_CURRENCIES = {
-    'USD': { buy: 10813, sell: 1 },
-    'EUR': { buy: 21620, sell: 21619 },
-    'GBP': { buy: 21624, sell: 21623 },
-    'CAD': { buy: 21636, sell: 21635 },
-    'JPY': { buy: 21622, sell: 21621 },
-    'CHF': { buy: 21626, sell: 21625 }
+    'USD': { buy: 1, sell: 10813 },
+    'EUR': { buy: 21619, sell: 21620 },
+    'GBP': { buy: 21623, sell: 21624 },
+    'CAD': { buy: 21635, sell: 21636 },
+    'JPY': { buy: 21621, sell: 21622 },
+    'CHF': { buy: 21625, sell: 21626 }
 };
 
 // In-memory cache for the session
@@ -21,46 +28,47 @@ const SESSION_CACHE = {
         data: null,
         lastFetch: 0
     },
-    exchange: {} // Will be keyed by currency
+    exchange: {}, // Will be keyed by currency
+    indicators: {} // Will be keyed by indicator
 };
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes 
 
 export const COMMON_CODES = [
-    { name: 'Dólar Americano', symbol: 'USD', buy: 10813, sell: 1 },
-    { name: 'Euro', symbol: 'EUR', buy: 21620, sell: 21619 },
-    { name: 'Iene Japonês', symbol: 'JPY', buy: 21622, sell: 21621 },
-    { name: 'Libra Esterlina', symbol: 'GBP', buy: 21624, sell: 21623 },
-    { name: 'Franco Suíço', symbol: 'CHF', buy: 21626, sell: 21625 },
-    { name: 'Coroa Dinamarquesa', symbol: 'DKK', buy: 21628, sell: 21627 },
-    { name: 'Coroa Norueguesa', symbol: 'NOK', buy: 21630, sell: 21629 },
-    { name: 'Coroa Sueca', symbol: 'SEK', buy: 21632, sell: 21631 },
-    { name: 'Dólar Australiano', symbol: 'AUD', buy: 21634, sell: 21633 },
-    { name: 'Dólar Canadense', symbol: 'CAD', buy: 21636, sell: 21635 },
-    { name: 'Coroa Tcheca', symbol: 'CZK', buy: 21638, sell: 21637 },
-    { name: 'Dólar de Cingapura', symbol: 'SGD', buy: 21640, sell: 21639 },
-    { name: 'Dólar de Hong Kong', symbol: 'HKD', buy: 21642, sell: 21641 },
-    { name: 'Dólar Neozelandês', symbol: 'NZD', buy: 21644, sell: 21643 },
-    { name: 'Peso Argentino', symbol: 'ARS', buy: 21646, sell: 21645 },
-    { name: 'Peso Chileno', symbol: 'CLP', buy: 21648, sell: 21647 },
-    { name: 'Peso Colombiano', symbol: 'COP', buy: 21650, sell: 21649 },
-    { name: 'Peso Mexicano', symbol: 'MXN', buy: 21652, sell: 21651 },
-    { name: 'Peso Uruguaio', symbol: 'UYU', buy: 21654, sell: 21653 },
-    { name: 'Rand Sul-Africano', symbol: 'ZAR', buy: 21656, sell: 21655 },
-    { name: 'Renminbi (Yuan)', symbol: 'CNY', buy: 21658, sell: 21657 },
-    { name: 'Won Sul-Coreano', symbol: 'KRW', buy: 21660, sell: 21659 },
-    { name: 'Zloty Polonês', symbol: 'PLN', buy: 21662, sell: 21661 },
-    { name: 'Rublo Russo', symbol: 'RUB', buy: 21664, sell: 21663 },
-    { name: 'Rupia Indiana', symbol: 'INR', buy: 21666, sell: 21665 },
-    { name: 'Ringgit Malaio', symbol: 'MYR', buy: 21668, sell: 21667 },
-    { name: 'Peso Filipino', symbol: 'PHP', buy: 21670, sell: 21669 },
-    { name: 'Baht Tailandês', symbol: 'THB', buy: 21672, sell: 21671 },
-    { name: 'Novo Shekel Israelense', symbol: 'ILS', buy: 21674, sell: 21673 },
-    { name: 'Lira Turca', symbol: 'TRY', buy: 21676, sell: 21675 },
-    { name: 'Forint Húngaro', symbol: 'HUF', buy: 21678, sell: 21677 },
-    { name: 'Rupia Indonésia', symbol: 'IDR', buy: 21680, sell: 21679 },
-    { name: 'Riyal Saudita', symbol: 'SAR', buy: 21682, sell: 21681 },
-    { name: 'Dirham dos EAU', symbol: 'AED', buy: 21684, sell: 21683 },
-    { name: 'Lev Búlgaro', symbol: 'BGN', buy: 21686, sell: 21685 }
+    { name: 'Dólar Americano', symbol: 'USD', buy: 1, sell: 10813 },
+    { name: 'Euro', symbol: 'EUR', buy: 21619, sell: 21620 },
+    { name: 'Iene Japonês', symbol: 'JPY', buy: 21621, sell: 21622 },
+    { name: 'Libra Esterlina', symbol: 'GBP', buy: 21623, sell: 21624 },
+    { name: 'Franco Suíço', symbol: 'CHF', buy: 21625, sell: 21626 },
+    { name: 'Coroa Dinamarquesa', symbol: 'DKK', buy: 21627, sell: 21628 },
+    { name: 'Coroa Norueguesa', symbol: 'NOK', buy: 21629, sell: 21630 },
+    { name: 'Coroa Sueca', symbol: 'SEK', buy: 21631, sell: 21632 },
+    { name: 'Dólar Australiano', symbol: 'AUD', buy: 21633, sell: 21634 },
+    { name: 'Dólar Canadense', symbol: 'CAD', buy: 21635, sell: 21636 },
+    { name: 'Coroa Tcheca', symbol: 'CZK', buy: 21637, sell: 21638 },
+    { name: 'Dólar de Cingapura', symbol: 'SGD', buy: 21639, sell: 21640 },
+    { name: 'Dólar de Hong Kong', symbol: 'HKD', buy: 21641, sell: 21642 },
+    { name: 'Dólar Neozelandês', symbol: 'NZD', buy: 21643, sell: 21644 },
+    { name: 'Peso Argentino', symbol: 'ARS', buy: 21645, sell: 21646 },
+    { name: 'Peso Chileno', symbol: 'CLP', buy: 21647, sell: 21648 },
+    { name: 'Peso Colombiano', symbol: 'COP', buy: 21649, sell: 21650 },
+    { name: 'Peso Mexicano', symbol: 'MXN', buy: 21651, sell: 21652 },
+    { name: 'Peso Uruguaio', symbol: 'UYU', buy: 21653, sell: 21654 },
+    { name: 'Rand Sul-Africano', symbol: 'ZAR', buy: 21655, sell: 21656 },
+    { name: 'Renminbi (Yuan)', symbol: 'CNY', buy: 21657, sell: 21658 },
+    { name: 'Won Sul-Coreano', symbol: 'KRW', buy: 21659, sell: 21660 },
+    { name: 'Zloty Polonês', symbol: 'PLN', buy: 21661, sell: 21662 },
+    { name: 'Rublo Russo', symbol: 'RUB', buy: 21663, sell: 21664 },
+    { name: 'Rupia Indiana', symbol: 'INR', buy: 21665, sell: 21666 },
+    { name: 'Ringgit Malaio', symbol: 'MYR', buy: 21667, sell: 21668 },
+    { name: 'Peso Filipino', symbol: 'PHP', buy: 21669, sell: 21670 },
+    { name: 'Baht Tailandês', symbol: 'THB', buy: 21671, sell: 21672 },
+    { name: 'Novo Shekel Israelense', symbol: 'ILS', buy: 21673, sell: 21674 },
+    { name: 'Lira Turca', symbol: 'TRY', buy: 21675, sell: 21676 },
+    { name: 'Forint Húngaro', symbol: 'HUF', buy: 21677, sell: 21678 },
+    { name: 'Rupia Indonésia', symbol: 'IDR', buy: 21679, sell: 21680 },
+    { name: 'Riyal Saudita', symbol: 'SAR', buy: 21681, sell: 21682 },
+    { name: 'Dirham dos EAU', symbol: 'AED', buy: 21683, sell: 21684 },
+    { name: 'Lev Búlgaro', symbol: 'BGN', buy: 21685, sell: 21686 }
 ];
 
 class BCBService {
@@ -77,6 +85,14 @@ class BCBService {
         }
     }
 
+    _clearIndicatorCache(indicator) {
+        if (indicator) {
+            delete SESSION_CACHE.indicators[indicator.toUpperCase()];
+        } else {
+            SESSION_CACHE.indicators = {};
+        }
+    }
+
     _normalizeValue(val) {
         if (typeof val === 'string') {
             return val.replace(',', '.');
@@ -84,25 +100,72 @@ class BCBService {
         return val;
     }
 
-    _normalizeDate(dateStr) {
-        if (!dateStr) return '';
-        const parts = dateStr.trim().split('/');
+    // Converts any supported date format to YYYY-MM-DD (for DB storage/querying)
+    _toDbDate(dateStr) {
+        if (!dateStr) return null;
+        const s = dateStr.trim();
 
-        let day, month, year;
+        // Already YYYY-MM-DD
+        if (s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
 
-        if (parts.length === 3) {
-            day = parts[0].padStart(2, '0');
-            month = parts[1].padStart(2, '0');
-            year = parts[2];
-        } else if (parts.length === 2) {
-            day = '01';
-            month = parts[0].padStart(2, '0');
-            year = parts[1];
-        } else {
-            return dateStr.trim();
+        // DD/MM/YYYY
+        if (s.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+            const parts = s.split('/');
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
 
-        return `${day}/${month}/${year}`;
+        return s;
+    }
+
+    // Converts YYYY-MM-DD (from DB) to DD/MM/YYYY (for App)
+    _fromDbDate(dateStr) {
+        if (!dateStr) return '';
+        const s = dateStr.trim();
+
+        // ISO YYYY-MM-DD
+        if (s.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const parts = s.split('-');
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        // Already DD/MM/YYYY (fallback)
+        if (s.match(/^\d{2}\/\d{2}\/\d{4}$/)) return s;
+
+        return s;
+    }
+
+    _normalizeDate(dateStr) {
+        return this._fromDbDate(dateStr);
+    }
+
+    async _fetchOlindaExchangeRates(startDate, endDate, currency) {
+        try {
+            // Olinda URL format: MM-DD-YYYY
+            const toOlindaDate = (d) => {
+                const parts = d.split('/');
+                return `${parts[1]}-${parts[0]}-${parts[2]}`;
+            };
+
+            const s = toOlindaDate(startDate);
+            const e = toOlindaDate(endDate);
+            const url = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(codigoMoeda='${currency.toUpperCase()}',dataInicial='${s}',dataFinal='${e}')?$top=1000&$format=json`;
+
+            const res = await this._robustFetch(url);
+            if (res && res.value) {
+                return res.value.map(item => ({
+                    data: this._fromDbDate(item.dataHoraCotacao.split(' ')[0]),
+                    valor: {
+                        buy: item.cotacaoCompra,
+                        sell: item.cotacaoVenda
+                    },
+                    source: 'OLINDA'
+                }));
+            }
+            return [];
+        } catch (error) {
+            console.warn(`Olinda fetch failed for ${currency}:`, error);
+            return [];
+        }
     }
 
     async _robustFetch(url) {
@@ -319,14 +382,14 @@ class BCBService {
     }
 
     async saveOverride(date, value, source = 'MANUAL', currency = null) {
-        const normalizedDate = this._normalizeDate(date);
+        const dbDate = this._toDbDate(date);
         try {
             if (currency) {
                 const { error } = await supabase
                     .from('exchange_overrides')
                     .upsert({
                         currency: currency.toUpperCase(),
-                        date: normalizedDate,
+                        date: dbDate,
                         buyValue: value.buy,
                         sellValue: value.sell,
                         source
@@ -337,7 +400,7 @@ class BCBService {
                 const { error } = await supabase
                     .from('selic_overrides')
                     .upsert({
-                        date: normalizedDate,
+                        date: dbDate,
                         value: parseFloat(value),
                         source
                     });
@@ -418,6 +481,9 @@ class BCBService {
 
     async fetchExchangeRateForDate(dateStr, currency) {
         try {
+            const olinda = await this._fetchOlindaExchangeRates(dateStr, dateStr, currency);
+            if (olinda && olinda.length > 0) return olinda[0].valor;
+
             const ids = await this.getSeriesIds(currency);
             if (!ids) throw new Error('Currency not supported');
 
@@ -449,38 +515,45 @@ class BCBService {
                 if (Date.now() - timestamp < CACHE_duration) return data;
             }
 
-            const ids = await this.getSeriesIds(currency);
-            if (!ids) throw new Error('Currency not supported');
+            // Try Olinda first
+            let result = await this._fetchOlindaExchangeRates(startDate, endDate, currency);
 
-            const fetchOne = async (seriesId) => {
-                const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${seriesId}/dados?formato=json&dataInicial=${startDate}&dataFinal=${endDate}`;
-                try {
-                    const data = await this._robustFetch(url);
-                    return data.map(item => ({
-                        ...item,
-                        data: this._normalizeDate(item.data),
-                        valor: this._normalizeValue(item.valor)
+            // Fallback to SGS if Olinda results are empty
+            if (result.length === 0) {
+                const ids = await this.getSeriesIds(currency);
+                if (ids) {
+                    const fetchOne = async (seriesId) => {
+                        const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${seriesId}/dados?formato=json&dataInicial=${startDate}&dataFinal=${endDate}`;
+                        try {
+                            const data = await this._robustFetch(url);
+                            return data.map(item => ({
+                                data: this._fromDbDate(item.data),
+                                valor: this._normalizeValue(item.valor)
+                            }));
+                        } catch (e) {
+                            return [];
+                        }
+                    };
+
+                    const [buyData, sellData] = await Promise.all([fetchOne(ids.buy), fetchOne(ids.sell)]);
+                    const combined = new Map();
+                    buyData.forEach(item => combined.set(item.data, { date: item.data, buy: item.valor, sell: null }));
+                    sellData.forEach(item => {
+                        if (combined.has(item.data)) combined.get(item.data).sell = item.valor;
+                        else combined.set(item.data, { date: item.data, buy: null, sell: item.valor });
+                    });
+
+                    result = Array.from(combined.values()).map(item => ({
+                        data: item.date,
+                        valor: { buy: item.buy, sell: item.sell },
+                        source: 'BCB_SGS'
                     }));
-                } catch (e) {
-                    return [];
                 }
-            };
+            }
 
-            const [buyData, sellData] = await Promise.all([fetchOne(ids.buy), fetchOne(ids.sell)]);
-            const combined = new Map();
-            buyData.forEach(item => combined.set(item.data, { date: item.data, buy: item.valor, sell: null }));
-            sellData.forEach(item => {
-                if (combined.has(item.data)) combined.get(item.data).sell = item.valor;
-                else combined.set(item.data, { date: item.data, buy: null, sell: item.valor });
-            });
-
-            const result = Array.from(combined.values()).map(item => ({
-                date: item.date,
-                value: { buy: item.buy, sell: item.sell },
-                source: 'BCB'
-            }));
-
-            localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: result }));
+            if (result.length > 0) {
+                localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: result }));
+            }
             return result;
         } catch (error) {
             console.error(`Error fetching exchange range for ${currency}:`, error);
@@ -492,24 +565,29 @@ class BCBService {
         if (!currency || currency === 'BRL') return [];
 
         try {
+            const dbStartDate = this._toDbDate(startDate);
+            const dbEndDate = this._toDbDate(endDate);
+
             const { data: stored, error: dbError } = await supabase
                 .from('exchange_overrides')
                 .select('*')
                 .eq('currency', currency.toUpperCase())
-                .gte('date', this._normalizeDate(startDate))
-                .lte('date', this._normalizeDate(endDate));
+                .gte('date', dbStartDate)
+                .lte('date', dbEndDate);
 
             if (dbError) throw dbError;
 
             if (!stored || stored.length === 0) {
                 try {
+                    // This fetches from BCB (returns DD/MM/YYYY dates and values)
                     const history = await this.fetchExchangeRatesForRange(startDate, endDate, currency);
+
                     if (history && history.length > 0) {
                         const updates = history.map(h => ({
                             currency: currency.toUpperCase(),
-                            date: h.date,
-                            buyValue: parseFloat(h.value.buy),
-                            sellValue: parseFloat(h.value.sell),
+                            date: this._toDbDate(h.data || h.date), // Robustness
+                            buyValue: parseFloat((h.valor || h.value)?.buy || 0),
+                            sellValue: parseFloat((h.valor || h.value)?.sell || 0),
                             source: 'BCB'
                         }));
                         await supabase.from('exchange_overrides').upsert(updates, { onConflict: 'currency,date' });
@@ -519,16 +597,17 @@ class BCBService {
                 }
             }
 
+            // Re-fetch or use logic to merge. For simplicity re-fetching to ensure consistent source of truth
             const { data: finalData } = await supabase
                 .from('exchange_overrides')
                 .select('*')
                 .eq('currency', currency.toUpperCase())
-                .gte('date', this._normalizeDate(startDate))
-                .lte('date', this._normalizeDate(endDate))
+                .gte('date', dbStartDate)
+                .lte('date', dbEndDate)
                 .order('date', { ascending: true });
 
             return (finalData || []).map(r => ({
-                data: r.date,
+                data: this._fromDbDate(r.date), // Return as DD/MM/YYYY for the app
                 valor: { buy: r.buyValue, sell: r.sellValue },
                 isOverridden: r.source === 'MANUAL',
                 source: r.source
@@ -556,7 +635,7 @@ class BCBService {
             .limit(100);
 
         const result = (data || []).map(r => ({
-            data: r.date,
+            data: this._fromDbDate(r.date),
             valor: { buy: r.buyValue, sell: r.sellValue },
             isOverridden: r.source === 'MANUAL',
             source: r.source
@@ -585,6 +664,223 @@ class BCBService {
             date: this._normalizeDate(item.data),
             value: this._normalizeValue(item.valor)
         }));
+    }
+
+    async getIndicatorConfigs() {
+        try {
+            const { data, error } = await supabase
+                .from('indicator_config')
+                .select('*');
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                const configMap = {};
+                data.forEach(item => {
+                    configMap[item.indicator] = { seriesId: item.seriesId, label: item.label || item.indicator };
+                });
+                return configMap;
+            }
+
+            // If empty, seed with defaults (optional, or just return defaults)
+            return DEFAULT_INDICATORS;
+        } catch (error) {
+            console.error('Error fetching indicator configs:', error);
+            return DEFAULT_INDICATORS;
+        }
+    }
+
+    async addIndicatorConfig(indicator, seriesId, label) {
+        try {
+            const { error } = await supabase
+                .from('indicator_config')
+                .upsert({
+                    indicator: indicator.toUpperCase(),
+                    seriesId: parseInt(seriesId),
+                    label: label || indicator.toUpperCase(),
+                    updatedAt: new Date().toISOString()
+                });
+            if (error) throw error;
+            this._clearIndicatorCache(indicator);
+        } catch (error) {
+            console.error('Error adding indicator config:', error);
+            throw error;
+        }
+    }
+
+    async removeIndicatorConfig(indicator) {
+        try {
+            const { error } = await supabase
+                .from('indicator_config')
+                .delete()
+                .eq('indicator', indicator.toUpperCase());
+            if (error) throw error;
+
+            // Also clean up overrides for this indicator
+            await supabase
+                .from('indicator_overrides')
+                .delete()
+                .eq('indicator', indicator.toUpperCase());
+
+            this._clearIndicatorCache(indicator);
+        } catch (error) {
+            console.error('Error removing indicator config:', error);
+            throw error;
+        }
+    }
+
+    async fetchIndicatorRates(indicator) {
+        if (!indicator) return [];
+        const ind = indicator.toUpperCase();
+
+        try {
+            const nowTime = Date.now();
+            if (SESSION_CACHE.indicators[ind] && (nowTime - SESSION_CACHE.indicators[ind].lastFetch < CACHE_TTL)) {
+                return SESSION_CACHE.indicators[ind].data;
+            }
+
+            const { data: stored, error: dbError } = await supabase
+                .from('indicator_overrides')
+                .select('*')
+                .eq('indicator', ind)
+                .order('date', { ascending: true });
+
+            if (dbError) throw dbError;
+
+            let finalRates = (stored || []).map(r => ({
+                data: this._fromDbDate(r.date),
+                valor: r.value,
+                isOverridden: r.source === 'MANUAL',
+                source: r.source
+            }));
+
+            // Sync logic if needed (similar to Selic)
+            // For now, return what's in DB
+            const result = finalRates.sort((a, b) => {
+                const [da, ma, ya] = a.data.split('/').map(Number);
+                const [db, mb, yb] = b.data.split('/').map(Number);
+                return new Date(ya, ma - 1, da) - new Date(yb, mb - 1, db);
+            });
+
+            SESSION_CACHE.indicators[ind] = {
+                data: result,
+                lastFetch: Date.now()
+            };
+            return result;
+        } catch (error) {
+            console.error(`Error in fetchIndicatorRates for ${ind}:`, error);
+            return SESSION_CACHE.indicators[ind]?.data || [];
+        }
+    }
+
+    async saveIndicatorOverride(indicator, date, value, source = 'MANUAL') {
+        const ind = indicator.toUpperCase();
+        const dbDate = this._toDbDate(date);
+        try {
+            const { error } = await supabase
+                .from('indicator_overrides')
+                .upsert({
+                    indicator: ind,
+                    date: dbDate,
+                    value: parseFloat(value),
+                    source
+                }, { onConflict: 'indicator,date' });
+            if (error) throw error;
+            this._clearIndicatorCache(ind);
+        } catch (error) {
+            console.error('Error saving indicator override:', error);
+            throw error;
+        }
+    }
+
+    async removeIndicatorOverride(indicator, date) {
+        const ind = indicator.toUpperCase();
+        const dbDate = this._toDbDate(date);
+        try {
+            const { error } = await supabase
+                .from('indicator_overrides')
+                .delete()
+                .eq('indicator', ind)
+                .eq('date', dbDate);
+            if (error) throw error;
+            this._clearIndicatorCache(ind);
+        } catch (error) {
+            console.error('Error removing indicator override:', error);
+            throw error;
+        }
+    }
+
+    async fetchIndicatorRateForMonth(indicator, month, year) {
+        const configs = await this.getIndicatorConfigs();
+        const config = configs[indicator.toUpperCase()];
+        if (!config) throw new Error('Indicator not supported or configured');
+
+        try {
+            const lastDay = new Date(year, month, 0).getDate();
+            const startDate = `01/${month}/${year}`;
+            const endDate = `${lastDay}/${month}/${year}`;
+            const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${config.seriesId}/dados?formato=json&dataInicial=${startDate}&dataFinal=${endDate}`;
+
+            const data = await this._robustFetch(url);
+            if (data && data.length > 0) return this._normalizeValue(data[0].valor);
+            return null;
+        } catch (error) {
+            console.error(`Error fetching ${indicator} for month:`, month, year, error);
+            throw error;
+        }
+    }
+
+    async syncDailyExchangeRates() {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const lastSync = localStorage.getItem('last_exchange_sync');
+            if (lastSync === today) {
+                return { status: 'already_synced' };
+            }
+
+            const managed = await this.getManagedCurrencies();
+            const currencies = Object.keys(managed);
+
+            if (currencies.length === 0) return { status: 'no_currencies' };
+
+            const now = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(now.getDate() - 30);
+
+            const pad = (n) => n.toString().padStart(2, '0');
+            const startDate = `${pad(thirtyDaysAgo.getDate())}/${pad(thirtyDaysAgo.getMonth() + 1)}/${thirtyDaysAgo.getFullYear()}`;
+            const endDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
+
+            let syncedCount = 0;
+            for (const currency of currencies) {
+                if (currency === 'BRL') continue;
+
+                try {
+                    const history = await this.fetchExchangeRatesForRange(startDate, endDate, currency);
+
+                    if (history && history.length > 0) {
+                        const updates = history.map(h => ({
+                            currency: currency.toUpperCase(),
+                            date: this._toDbDate(h.data || h.date),
+                            buyValue: parseFloat((h.valor || h.value)?.buy || 0),
+                            sellValue: parseFloat((h.valor || h.value)?.sell || 0),
+                            source: 'BCB'
+                        }));
+                        await supabase.from('exchange_overrides').upsert(updates, { onConflict: 'currency,date' });
+                        syncedCount++;
+                    }
+                } catch (err) {
+                    console.warn(`Failed to sync rates for ${currency}:`, err);
+                }
+            }
+
+            localStorage.setItem('last_exchange_sync', today);
+            this._clearExchangeCache();
+            return { status: 'success', currenciesSynced: syncedCount };
+        } catch (error) {
+            console.error('Error syncing daily exchange rates:', error);
+            throw error;
+        }
     }
 }
 

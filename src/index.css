@@ -45,13 +45,11 @@
 }
 
 body {
-  @apply bg-slate-50 dark:bg-slate-950 font-sans antialiased;
+  @apply bg-slate-50 dark:bg-slate-950 font-sans antialiased text-sm;
   overflow: hidden;
 }
 
 #root {
-  height: 111.11vh;
-  width: 111.11vw;
-  transform: scale(0.9);
-  transform-origin: top left;
+  height: 100%;
+  width: 100%;
 }

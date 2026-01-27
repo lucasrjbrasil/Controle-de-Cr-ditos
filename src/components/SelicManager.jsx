@@ -5,9 +5,12 @@ import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';
 import Button from './ui/Button';
 import Input from './ui/Input';
+import { useToast } from '../context/ToastContext';
+import Modal from './ui/Modal';
 
 export default function SelicManager() {
     const { rates, updateRate, removeRate, loading, error, batchUpdateRates } = useSelic();
+    const toast = useToast();
     const [searchTerm, setSearchTerm] = useState('');
     const [editingDate, setEditingDate] = useState(null);
     const [editValue, setEditValue] = useState('');
@@ -98,7 +101,7 @@ export default function SelicManager() {
             try {
                 removeRate(date);
             } catch (error) {
-                alert('Erro ao excluir: ' + error.message);
+                toast.error('Erro ao excluir: ' + error.message);
             }
         }
     };
@@ -118,17 +121,17 @@ export default function SelicManager() {
                 setIsAddOpen(false);
                 setNewRateData({ date: '', value: '', source: 'MANUAL' });
             } catch (err) {
-                alert("Erro ao adicionar taxa: " + err.message);
+                toast.error("Erro ao adicionar taxa: " + err.message);
             }
         } else {
-            alert("Preencha todos os campos");
+            toast.warning("Preencha todos os campos");
         }
     };
 
     const handleBatchImport = async (e) => {
         e.preventDefault();
         if (!batchRange.start || !batchRange.end) {
-            alert("Preencha o intervalo (Início e Fim)");
+            toast.warning("Preencha o intervalo (Início e Fim)");
             return;
         }
 
@@ -177,15 +180,15 @@ export default function SelicManager() {
 
             if (updates.length > 0) {
                 batchUpdateRates(updates);
-                alert(`Importação concluída! ${successes} taxas importadas.`);
+                toast.success(`Importação concluída! ${successes} taxas importadas.`);
             } else {
-                alert("Nenhuma taxa encontrada para o período informado.");
+                toast.info("Nenhuma taxa encontrada para o período informado.");
             }
 
             setIsBatchOpen(false);
             setBatchRange({ start: '', end: '' });
         } catch (error) {
-            alert("Erro na importação: " + error.message);
+            toast.error("Erro na importação: " + error.message);
         } finally {
             setIsImporting(false);
             setImportProgress(0);
@@ -204,18 +207,27 @@ export default function SelicManager() {
                         Histórico Selic
                     </h2>
                     <p className="text-slate-500 dark:text-slate-400">
-                        Visualize e ajuste as taxas mensais (MM/AAAA).
+                        Acompanhe e gerencie as taxas Selic mensais.
                     </p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <Button variant="secondary" onClick={() => setIsBatchOpen(true)} className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                        variant="secondary"
+                        onClick={() => setIsBatchOpen(true)}
+                        className="flex items-center gap-2"
+                    >
                         <History size={18} />
-                        Importar Intervalo
+                        <span className="hidden sm:inline">Importar Intervalo</span>
+                        <span className="sm:hidden">Importar</span>
                     </Button>
-                    <Button onClick={() => setIsAddOpen(true)} className="flex items-center gap-2">
+                    <Button
+                        onClick={() => setIsAddOpen(true)}
+                        className="flex items-center gap-2"
+                    >
                         <Plus size={18} />
-                        Adicionar
+                        <span className="hidden sm:inline">Adicionar Taxa</span>
+                        <span className="sm:hidden">Adicionar</span>
                     </Button>
                     <div className="relative w-full md:w-64">
                         <Input
@@ -223,126 +235,127 @@ export default function SelicManager() {
                             placeholder="Buscar mês/ano..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            className="text-sm"
                         />
                     </div>
                 </div>
             </div>
 
-            {isAddOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Adicionar Taxa Selic</h3>
-                        <form onSubmit={handleAddRate} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Mês/Ano (MM/AAAA)</label>
-                                <div className="flex gap-2">
-                                    <div className="flex-1">
-                                        <Input
-                                            placeholder="01/2026"
-                                            value={newRateData.date}
-                                            onChange={e => setNewRateData({ ...newRateData, date: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={async () => {
-                                            if (!newRateData.date || newRateData.date.length < 7) {
-                                                alert("Digite o Mês/Ano (MM/AAAA) primeiro.");
-                                                return;
-                                            }
-                                            const [m, y] = newRateData.date.split('/');
-                                            if (!m || !y) return;
-                                            try {
-                                                const { bcbService } = await import('../services/bcbService');
-                                                const val = await bcbService.fetchRateForMonth(m, y);
-                                                if (val) {
-                                                    setNewRateData({ ...newRateData, value: val, source: 'BCB' });
-                                                } else {
-                                                    alert("Taxa não encontrada no BCB para este período.");
-                                                }
-                                            } catch (e) {
-                                                alert("Erro ao buscar no BCB.");
-                                            }
-                                        }}
-                                        className="whitespace-nowrap"
-                                    >
-                                        Buscar BCB
-                                    </Button>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Taxa (%)</label>
+            <Modal
+                isOpen={isAddOpen}
+                onClose={() => setIsAddOpen(false)}
+                title="Adicionar Taxa Selic"
+                maxWidth="sm"
+            >
+                <form onSubmit={handleAddRate} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Mês/Ano (MM/AAAA)</label>
+                        <div className="flex gap-2">
+                            <div className="flex-1">
                                 <Input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="0.90"
-                                    value={newRateData.value}
-                                    onChange={e => setNewRateData({ ...newRateData, value: e.target.value })}
+                                    placeholder="01/2026"
+                                    value={newRateData.date}
+                                    onChange={e => setNewRateData({ ...newRateData, date: e.target.value })}
                                     required
                                 />
                             </div>
-                            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <Button type="button" variant="secondary" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
-                                <Button type="submit">Salvar</Button>
-                            </div>
-                        </form>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={async () => {
+                                    if (!newRateData.date || newRateData.date.length < 7) {
+                                        toast.warning("Digite o Mês/Ano (MM/AAAA) primeiro.");
+                                        return;
+                                    }
+                                    const [m, y] = newRateData.date.split('/');
+                                    if (!m || !y) return;
+                                    try {
+                                        const { bcbService } = await import('../services/bcbService');
+                                        const val = await bcbService.fetchRateForMonth(m, y);
+                                        if (val) {
+                                            setNewRateData({ ...newRateData, value: val, source: 'BCB' });
+                                        } else {
+                                            toast.info("Taxa não encontrada no BCB para este período.");
+                                        }
+                                    } catch (e) {
+                                        toast.error("Erro ao buscar no BCB.");
+                                    }
+                                }}
+                                className="whitespace-nowrap"
+                            >
+                                Buscar BCB
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            )}
-
-            {isBatchOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 w-full max-w-sm border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Importar Intervalo (BCB)</h3>
-                        <form onSubmit={handleBatchImport} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Início (MM/AAAA)</label>
-                                    <Input
-                                        placeholder="01/2024"
-                                        value={batchRange.start}
-                                        onChange={e => setBatchRange({ ...batchRange, start: e.target.value })}
-                                        required
-                                        disabled={isImporting}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Fim (MM/AAAA)</label>
-                                    <Input
-                                        placeholder="12/2024"
-                                        value={batchRange.end}
-                                        onChange={e => setBatchRange({ ...batchRange, end: e.target.value })}
-                                        required
-                                        disabled={isImporting}
-                                    />
-                                </div>
-                            </div>
-
-                            {isImporting && (
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-xs font-medium text-slate-500">
-                                        <span>Processando...</span>
-                                        <span>{importProgress}%</span>
-                                    </div>
-                                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                                        <div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 text-center italic">Buscando dados no servidor do Banco Central...</p>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <Button type="button" variant="secondary" onClick={() => setIsBatchOpen(false)} disabled={isImporting}>Cancelar</Button>
-                                <Button type="submit" disabled={isImporting} className="flex items-center gap-2">
-                                    {isImporting ? 'Importando...' : 'Iniciar Importação'}
-                                </Button>
-                            </div>
-                        </form>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Taxa (%)</label>
+                        <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.90"
+                            value={newRateData.value}
+                            onChange={e => setNewRateData({ ...newRateData, value: e.target.value })}
+                            required
+                        />
                     </div>
-                </div>
-            )}
+                    <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <Button type="button" variant="secondary" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
+                        <Button type="submit">Salvar</Button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal
+                isOpen={isBatchOpen}
+                onClose={() => setIsBatchOpen(false)}
+                title="Importar Intervalo (BCB)"
+                maxWidth="sm"
+            >
+                <form onSubmit={handleBatchImport} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Início (MM/AAAA)</label>
+                            <Input
+                                placeholder="01/2024"
+                                value={batchRange.start}
+                                onChange={e => setBatchRange({ ...batchRange, start: e.target.value })}
+                                required
+                                disabled={isImporting}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Fim (MM/AAAA)</label>
+                            <Input
+                                placeholder="12/2024"
+                                value={batchRange.end}
+                                onChange={e => setBatchRange({ ...batchRange, end: e.target.value })}
+                                required
+                                disabled={isImporting}
+                            />
+                        </div>
+                    </div>
+
+                    {isImporting && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs font-medium text-slate-500">
+                                <span>Processando...</span>
+                                <span>{importProgress}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                <div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
+                            </div>
+                            <p className="text-[10px] text-slate-400 text-center italic">Buscando dados no servidor do Banco Central...</p>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <Button type="button" variant="secondary" onClick={() => setIsBatchOpen(false)} disabled={isImporting}>Cancelar</Button>
+                        <Button type="submit" disabled={isImporting} className="flex items-center gap-2">
+                            {isImporting ? 'Importando...' : 'Iniciar Importação'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
 
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm h-[600px] flex flex-col">
                 <div className="overflow-y-auto flex-1">

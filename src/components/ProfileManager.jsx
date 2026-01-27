@@ -6,6 +6,7 @@ import { User, Camera, Loader2, Save, LogOut } from 'lucide-react';
 const ProfileManager = () => {
     const { user, logout } = useAuth();
     const [name, setName] = useState(user?.user_metadata?.full_name || '');
+    const [phone, setPhone] = useState(user?.phone || '');
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata?.avatar_url || null);
@@ -16,9 +17,16 @@ const ProfileManager = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            const { error } = await supabase.auth.updateUser({
+            const updatePayload = {
                 data: { full_name: name }
-            });
+            };
+
+            // Only include phone if it has changed
+            if (phone !== user?.phone && phone.trim() !== '') {
+                updatePayload.phone = phone.startsWith('+') ? phone : `+55${phone.replace(/\D/g, '')}`;
+            }
+
+            const { error } = await supabase.auth.updateUser(updatePayload);
 
             if (error) throw error;
             setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' });
@@ -90,8 +98,8 @@ const ProfileManager = () => {
                 {/* Info Section */}
                 <div className="md:col-span-2 space-y-6">
                     <form onSubmit={handleUpdateProfile} className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-                        <div className="grid grid-cols-1 gap-6">
-                            <div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                                     Nome completo
                                 </label>
@@ -113,6 +121,19 @@ const ProfileManager = () => {
                                     value={user?.email}
                                     disabled
                                     className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-500 cursor-not-allowed"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Telefone Celular
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    placeholder="(11) 99999-9999"
                                 />
                             </div>
                         </div>

@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { useAuth } from './AuthContext';
 
 const CreditsContext = createContext();
 
 export function CreditsProvider({ children }) {
     const [credits, setCredits] = useState([]);
+    const { user } = useAuth();
 
     useEffect(() => {
         fetchCredits();
@@ -31,9 +33,12 @@ export function CreditsProvider({ children }) {
         }
 
         try {
+            const userName = user?.user_metadata?.full_name || user?.email || 'Usuário Desconhecido';
             const creditToSave = {
                 ...newCredit,
                 selicHistory: [], // Will be populated by service
+                modified_by: userName,
+                modified_at: new Date().toISOString(),
             };
 
             const { data, error } = await supabase
@@ -67,9 +72,16 @@ export function CreditsProvider({ children }) {
 
     const updateCredit = async (id, updatedFields) => {
         try {
+            const userName = user?.user_metadata?.full_name || user?.email || 'Usuário Desconhecido';
+            const fieldsWithModification = {
+                ...updatedFields,
+                modified_by: userName,
+                modified_at: new Date().toISOString(),
+            };
+
             const { data, error } = await supabase
                 .from('credits')
-                .update(updatedFields)
+                .update(fieldsWithModification)
                 .eq('id', id)
                 .select()
                 .single();

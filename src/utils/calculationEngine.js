@@ -81,6 +81,7 @@ export function calculateEvolution(credit, selicRates) {
         const compensationUpdate = compensation - compensationPrincipal;
         const saldoFinal = valorAtualizado - compensation;
         const monthlyUpdateValue = currentPrincipal * (accumulatedRate / 100);
+        const monthlyUpdateOnly = currentPrincipal * (monthlyRateForDisplay / 100);
 
         rows.push({
             id: monthStr,
@@ -91,8 +92,10 @@ export function calculateEvolution(credit, selicRates) {
             accumulatedRate,
             factor,
             valorAtualizado,
-            monthlyUpdateValue,
+            monthlyUpdateValue, // Renamed to "Selic Acumulada" in UI
+            monthlyUpdateOnly,  // New "Atualização" column
             compensation,
+            compensationsList: compObj?.items || [], // Pass detailed list
             compensationPrincipal,
             compensationUpdate,
             saldoFinal

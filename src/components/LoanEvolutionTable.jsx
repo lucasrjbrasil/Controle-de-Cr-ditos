@@ -2,14 +2,16 @@ import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { useExchangeRates } from '../hooks/useExchangeRates';
 import { calculateLoanEvolution } from '../utils/loanCalculator';
-import { formatCurrencyByCode } from '../utils/formatters';
+import { formatCurrencyByCode, formatCurrency } from '../utils/formatters';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';
 import { TrendingUp, TrendingDown, Minus, ChevronRight, ChevronDown, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportToExcel } from '../utils/exportUtils';
+import { useCompanies } from '../context/CompanyContext';
 
 export default function LoanEvolutionTable({ loan }) {
     const [expandedMonths, setExpandedMonths] = useState({});
+    const { companies } = useCompanies();
     const { columnWidths, handleResize, getColumnWidth } = useColumnResize({
         mes: 100,
         indice: 120,
@@ -41,27 +43,42 @@ export default function LoanEvolutionTable({ loan }) {
         setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
     };
 
-    const exportToExcel = () => {
+    const handleExportToExcel = async () => {
         const allLogs = evolution.flatMap(month => month.dailyLogs);
 
         const data = allLogs.map(log => ({
             'Data': log.date,
-            'Câmbio': log.rate,
             [`Principal (${loan.moeda})`]: log.principalOrg,
             [`Juros (${loan.moeda})`]: log.dailyInterest,
             [`Juros Acum. (${loan.moeda})`]: log.interestOrgAcc,
-            'Variação Cambial Principal': log.activeVarPrincipal - log.passiveVarPrincipal,
-            'Variação Cambial Juros': log.activeVarInterest - log.passiveVarInterest,
-            'Principal (Real)': log.principalBrl,
-            'Juros (Real)': log.dailyInterestBrl,
-            'Juros Acum. (Real)': log.interestBrl,
-            'Total (Real)': log.totalBrl
+            'Câmbio': log.rate,
+            'Var. Cambial Princ. (BRL)': log.activeVarPrincipal - log.passiveVarPrincipal,
+            'Var. Cambial Juros (BRL)': log.activeVarInterest - log.passiveVarInterest,
+            'Principal (BRL)': log.principalBrl,
+            'Juros (BRL)': log.dailyInterestBrl,
+            'Juros Acum. (BRL)': log.interestBrl,
+            'Total (BRL)': log.totalBrl
         }));
 
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Demonstrativo");
-        XLSX.writeFile(wb, `Demonstrativo_${loan.nome || 'Emprestimo'}_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+        // Calculate final balance
+        const lastLog = allLogs[allLogs.length - 1];
+        const finalBalance = lastLog ? lastLog.totalBrl : 0;
+
+        const metadata = {
+            title: `DEMONSTRATIVO DE EVOLUÇÃO - ${loan.instituicao.toUpperCase()}`,
+            headerInfo: [
+                { label: 'Empresa:', value: companies.find(c => c.id === loan.empresaId)?.name || 'N/A' },
+                { label: 'Instituição:', value: loan.instituicao },
+                { label: 'Contrato:', value: loan.numeroContrato || 'S/N' },
+                { label: 'Moeda:', value: loan.moeda },
+                { label: 'Valor Original:', value: formatCurrencyByCode(loan.valorOriginal, loan.moeda) },
+                { label: 'Data Início:', value: new Date(loan.dataInicio).toLocaleDateString('pt-BR') },
+                { label: 'Taxa Juros:', value: `${loan.taxa}% ${loan.periodoTaxa} (${loan.tipoJuros})` },
+                { label: 'Saldo Atual:', value: formatCurrency(finalBalance) }
+            ]
+        };
+
+        await exportToExcel(data, `Demonstrativo_${loan.instituicao}_${loan.numeroContrato || 'SN'}_${format(new Date(), 'dd-MM-yyyy')}.xlsx`, metadata);
     };
 
     if (loading) return (
@@ -85,7 +102,7 @@ export default function LoanEvolutionTable({ loan }) {
                         Demonstrativo de Evolução
                     </h4>
                     <button
-                        onClick={exportToExcel}
+                        onClick={handleExportToExcel}
                         className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-emerald-500/20"
                     >
                         <Download size={14} />

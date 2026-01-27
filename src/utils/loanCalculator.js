@@ -18,9 +18,15 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
 
     // Create a map for easy exchange rate lookup
     const rateMap = new Map();
-    exchangeRates.forEach(r => {
-        rateMap.set(r.data, r.valor);
-    });
+    if (Array.isArray(exchangeRates)) {
+        exchangeRates.forEach(r => {
+            const dateKey = r?.data || r?.date;
+            const rateVal = r?.valor || r?.value;
+            if (dateKey) {
+                rateMap.set(dateKey, rateVal);
+            }
+        });
+    }
 
     // Daily rate calculation with high precision
     const baseRate = new Decimal(loan.taxa || 0).div(100);
@@ -109,12 +115,15 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
         }
 
         if (!isFirstDay) {
-            // Variation still calculated if there is a balance and it's not the first day
+            const dTodayRate = new Decimal(todayRate);
+            const dPrevRate = new Decimal(prevRate);
+            const dRateDiff = dTodayRate.minus(dPrevRate);
+
             if (principalOrg !== 0) {
-                dailyVarPrinc = principalOrg * (todayRate - prevRate);
+                dailyVarPrinc = new Decimal(principalOrg).mul(dRateDiff).toNumber();
             }
             if (interestOrg !== 0) {
-                dailyVarInt = interestOrg * (todayRate - prevRate);
+                dailyVarInt = new Decimal(interestOrg).mul(dRateDiff).toNumber();
             }
         }
 
@@ -129,6 +138,9 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
             if (dailyVarInt > 0) bufferFlowActiveVarInt += dailyVarInt;
             else bufferFlowPassiveVarInt += Math.abs(dailyVarInt);
         } else {
+            // For Passivo (Liability):
+            // Positive diff (Rate Up) -> Increases Debt -> Passive Variation
+            // Negative diff (Rate Down) -> Decreases Debt -> Active Variation
             if (dailyVarPrinc > 0) bufferFlowPassiveVarPrinc += dailyVarPrinc;
             else bufferFlowActiveVarPrinc += Math.abs(dailyVarPrinc);
 
@@ -189,9 +201,8 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
         let loggedPassiveVarInt = 0;
         let loggedIntBrl = 0;
 
-        // Rule: Only show consolidated buffers on Payments or Month-End.
-        // Aportes (Addition only) and First Day show 0 flow (buffers continue for Aportes).
-        const shouldFlushBuffers = !isFirstDay && (hasPayment || isMonthEnd);
+        // Rule: Show consolidated buffers on Transactions (Aportes/Payments) or Month-End.
+        const shouldFlushBuffers = !isFirstDay && (hasTransactions || isMonthEnd);
 
         if (shouldFlushBuffers) {
             loggedIntOrg = bufferFlowInterestOrg;
@@ -232,12 +243,9 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
         let endPrincipalOrg = principalOrg - totalPaidPrincipal;
 
         if (shouldCapitalize && endInterestOrg > 0) {
-            // INCORRECT: endPrincipalOrg += endInterestOrg; // Don't merge into display principal
-            // CORRECT: Update the internal capitalized base
             capitalizedInterest = endInterestOrg;
         }
 
-        // Safety: If interest was paid, capitalized base cannot exceed total interest
         if (capitalizedInterest > endInterestOrg) {
             capitalizedInterest = endInterestOrg;
         }
@@ -248,7 +256,7 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
             netPrincipalFlow += loan.valorOriginal || 0;
         }
 
-        // Update Month Stats (Accumulate for the whole month view)
+        // Update Month Stats
         monthStats.monthlyInterestOrg += dailyDeltaIntOrg;
         monthStats.monthlyInterestBrl += (dailyDeltaIntOrg * todayRate);
         monthStats.totalPaidOrg += totalPaidToday;
@@ -264,6 +272,17 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
         monthStats.interestBrl = endInterestOrg * todayRate;
 
         if (shouldLogRow) {
+            // Calculate Net Variation based on category
+            // For Liabilities (Passivo), an increase is passive (positive debt change)
+            // For Assets (Ativo), an increase is active (positive asset change)
+            const netVarPrinc = loan.categoria === 'Ativo'
+                ? (loggedActiveVarPrinc - loggedPassiveVarPrinc)
+                : (loggedPassiveVarPrinc - loggedActiveVarPrinc);
+
+            const netVarInt = loan.categoria === 'Ativo'
+                ? (loggedActiveVarInt - loggedPassiveVarInt)
+                : (loggedPassiveVarInt - loggedActiveVarInt);
+
             const logEntry = {
                 date: dayStr,
                 rate: todayRate,
@@ -273,6 +292,8 @@ export function calculateLoanEvolution(loan, exchangeRates, cutoffDate = new Dat
                 passiveVarPrincipal: loggedPassiveVarPrinc,
                 activeVarInterest: loggedActiveVarInt,
                 passiveVarInterest: loggedPassiveVarInt,
+                variationPrincipal: netVarPrinc,
+                variationInterest: netVarInt,
                 dailyInterestBrl: loggedIntBrl,
                 principalOrg: endPrincipalOrg,
                 interestOrgAcc: endInterestOrg,
