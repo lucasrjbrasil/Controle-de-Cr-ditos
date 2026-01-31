@@ -6,8 +6,6 @@ export function useExchangeRates(currency, startDate = null, endDate = null) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const overridesKey = currency ? `exchange_${currency}_overrides` : null;
-
     useEffect(() => {
         if (!currency || currency === 'BRL') {
             setRates([]);

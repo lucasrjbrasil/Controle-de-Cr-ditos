@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Save, History, RotateCcw, Plus, Pencil, Trash2, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, History, Plus, Pencil, Trash2, X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSelic } from '../hooks/useSelic';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';

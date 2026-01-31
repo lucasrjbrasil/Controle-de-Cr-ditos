@@ -106,20 +106,33 @@ try {
 
 ### Validação de Formulários
 
-Use as funções de validação centralizadas:
+Use as funções de validação e segurança centralizadas:
 
 ```javascript
-import { validateForm, ERROR_MESSAGES } from '../utils/validationUtils';
+import { 
+    validateForm, 
+    validatePasswordStrength, 
+    sanitize, 
+    isValidCNPJ 
+} from '../utils/validationUtils';
 
+// Validação de formulário
 const rules = {
     email: { required: true, email: true },
-    password: { required: true, minLength: 6 },
-    age: { numeric: true, range: [18, 100] }
+    password: { required: true, minLength: 8 },
+    cnpj: { required: true, cnpj: true }
 };
-
 const errors = validateForm(formData, rules);
-if (Object.keys(errors).length > 0) {
-    // Mostrar erros
+
+// Validação de força de senha
+const { isValid, strength, errors } = validatePasswordStrength(password);
+
+// Sanitização contra XSS
+const safeInput = sanitize(userInput);
+
+// Validação de CNPJ
+if (!isValidCNPJ(cnpj)) {
+    toast.error('CNPJ inválido');
 }
 ```
 
@@ -180,10 +193,12 @@ Prefixos:
 ## ✅ Checklist Antes de Commit
 
 - [ ] Código está formatado corretamente
-- [ ] Sem `console.log` no código
+- [ ] Sem `console.log` no código (use `devLog` se necessário)
 - [ ] Sem `alert()` - use `toast`
-- [ ] Componentes têm JSDoc quando apropriado
+- [ ] Inputs sanitizados com `sanitize()`
 - [ ] Validações usam `validationUtils`
+- [ ] Senhas validadas com `validatePasswordStrength()`
+- [ ] CNPJs validados com `isValidCNPJ()`
 - [ ] Estilos seguem o design system
 - [ ] Testado em modo claro e escuro
 - [ ] Sem erros no console do navegador

@@ -239,7 +239,7 @@ export default function PerdcompForm({ onClose, initialData }) {
                                 Período Apuração
                             </label>
                             <Input
-                                placeholder="MM/AAAA"
+                                placeholder="MM/AAAA ou DD/MM/AAAA"
                                 value={formData.periodoApuracao}
                                 onChange={e => setFormData({ ...formData, periodoApuracao: e.target.value })}
                             />

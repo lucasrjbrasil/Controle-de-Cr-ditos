@@ -10,6 +10,29 @@ export function CreditsProvider({ children }) {
 
     useEffect(() => {
         fetchCredits();
+
+        // Set up realtime subscription for automatic updates
+        const channel = supabase
+            .channel('credits-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'credits' },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        setCredits(prev => [payload.new, ...prev]);
+                    } else if (payload.eventType === 'UPDATE') {
+                        setCredits(prev => prev.map(c => c.id === payload.new.id ? payload.new : c));
+                    } else if (payload.eventType === 'DELETE') {
+                        setCredits(prev => prev.filter(c => c.id !== payload.old.id));
+                    }
+                }
+            )
+            .subscribe();
+
+        // Cleanup subscription on unmount
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const fetchCredits = async () => {
@@ -98,7 +121,7 @@ export function CreditsProvider({ children }) {
     };
 
     return (
-        <CreditsContext.Provider value={{ credits, addCredit, removeCredit, updateCredit }}>
+        <CreditsContext.Provider value={{ credits, addCredit, removeCredit, updateCredit, refreshCredits: fetchCredits }}>
             {children}
         </CreditsContext.Provider>
     );

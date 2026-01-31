@@ -1,6 +1,93 @@
 /**
  * Validation utilities for form inputs
+ * @module validationUtils
  */
+
+/**
+ * Sanitizes a string to prevent XSS attacks
+ * Removes script tags, event handlers, and dangerous HTML
+ * @param {string} value - Value to sanitize
+ * @returns {string} Sanitized string
+ */
+export const sanitize = (value) => {
+    if (typeof value !== 'string') return value;
+    return value
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+        .replace(/on\w+\s*=\s*[^\s>]+/gi, '')
+        .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+        .replace(/javascript:/gi, '')
+        .replace(/data:/gi, 'data-blocked:')
+        .trim();
+};
+
+/**
+ * Validates password strength
+ * Requirements: min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+ * @param {string} password - Password to validate
+ * @returns {object} { isValid: boolean, errors: string[] }
+ */
+export const validatePasswordStrength = (password) => {
+    const errors = [];
+
+    if (!password || password.length < 8) {
+        errors.push('Mínimo de 8 caracteres');
+    }
+    if (!/[A-Z]/.test(password)) {
+        errors.push('Pelo menos 1 letra maiúscula');
+    }
+    if (!/[a-z]/.test(password)) {
+        errors.push('Pelo menos 1 letra minúscula');
+    }
+    if (!/[0-9]/.test(password)) {
+        errors.push('Pelo menos 1 número');
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/`~]/.test(password)) {
+        errors.push('Pelo menos 1 caractere especial (!@#$%...)');
+    }
+
+    return {
+        isValid: errors.length === 0,
+        errors,
+        strength: errors.length === 0 ? 'strong' : errors.length <= 2 ? 'medium' : 'weak'
+    };
+};
+
+/**
+ * Validates Brazilian CNPJ using official algorithm
+ * @param {string} cnpj - CNPJ to validate (with or without formatting)
+ * @returns {boolean} True if valid CNPJ
+ */
+export const isValidCNPJ = (cnpj) => {
+    if (!cnpj) return false;
+
+    // Remove non-numeric characters
+    const cleaned = cnpj.replace(/\D/g, '');
+
+    // Must have exactly 14 digits
+    if (cleaned.length !== 14) return false;
+
+    // Reject known invalid patterns
+    if (/^(\d)\1+$/.test(cleaned)) return false;
+
+    // Validate check digits
+    const calcDigit = (base, weights) => {
+        let sum = 0;
+        for (let i = 0; i < weights.length; i++) {
+            sum += parseInt(base[i]) * weights[i];
+        }
+        const remainder = sum % 11;
+        return remainder < 2 ? 0 : 11 - remainder;
+    };
+
+    const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+
+    const digit1 = calcDigit(cleaned.slice(0, 12), weights1);
+    const digit2 = calcDigit(cleaned.slice(0, 12) + digit1, weights2);
+
+    return cleaned.endsWith(`${digit1}${digit2}`);
+};
 
 /**
  * Validates if a value is not empty

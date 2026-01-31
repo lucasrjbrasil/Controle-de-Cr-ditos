@@ -1,25 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
 import logo from '../assets/logo.png';
+import { validatePasswordStrength, sanitize } from '../utils/validationUtils';
 
 const Register = ({ onLoginClick }) => {
-    // ... existing ...
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
-    const [registerMethod, setRegisterMethod] = useState('email'); // 'email' or 'phone'
+    const [registerMethod, setRegisterMethod] = useState('email');
     const { register } = useAuth();
+
+    // Real-time password strength validation
+    const passwordValidation = useMemo(() => validatePasswordStrength(password), [password]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setIsSuccess(false);
+
+        // Validate password strength
+        if (!passwordValidation.isValid) {
+            setError('Senha fraca. ' + passwordValidation.errors.join(', '));
+            return;
+        }
 
         if (password !== confirmPassword) {
             setError('As senhas não coincidem.');
@@ -29,7 +39,14 @@ const Register = ({ onLoginClick }) => {
         setIsLoading(true);
 
         try {
-            await register(registerMethod === 'email' ? email : null, password, name, registerMethod === 'phone' ? phone : null);
+            // Sanitize inputs before sending
+            const sanitizedName = sanitize(name);
+            await register(
+                registerMethod === 'email' ? email : null,
+                password,
+                sanitizedName,
+                registerMethod === 'phone' ? phone : null
+            );
             setIsSuccess(true);
         } catch (err) {
             setError(err.message || 'Falha ao criar conta.');
@@ -145,30 +162,64 @@ const Register = ({ onLoginClick }) => {
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-3">
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                             Senha
                                         </label>
-                                        <input
-                                            type="password"
-                                            required
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                required
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                className="block w-full px-3 py-2 pr-10 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            >
+                                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+
+                                        {/* Password Strength Indicator */}
+                                        {password && (
+                                            <div className="mt-2 space-y-1">
+                                                <div className="flex gap-1">
+                                                    <div className={`h-1 flex-1 rounded-full ${passwordValidation.strength === 'weak' ? 'bg-red-500' : passwordValidation.strength === 'medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
+                                                    <div className={`h-1 flex-1 rounded-full ${passwordValidation.strength === 'medium' ? 'bg-yellow-500' : passwordValidation.strength === 'strong' ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                                    <div className={`h-1 flex-1 rounded-full ${passwordValidation.strength === 'strong' ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                                </div>
+                                                <div className="text-[10px] text-slate-500 space-y-0.5">
+                                                    {['Mínimo de 8 caracteres', 'Pelo menos 1 letra maiúscula', 'Pelo menos 1 número', 'Pelo menos 1 caractere especial (!@#$%...)'].map((req, i) => {
+                                                        const passed = !passwordValidation.errors.includes(req);
+                                                        return (
+                                                            <div key={i} className={`flex items-center gap-1 ${passed ? 'text-green-600' : 'text-slate-400'}`}>
+                                                                {passed ? <Check size={10} /> : <X size={10} />}
+                                                                {req}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                                            Confirmar
+                                            Confirmar Senha
                                         </label>
                                         <input
-                                            type="password"
+                                            type={showPassword ? 'text' : 'password'}
                                             required
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}
-                                            className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white"
+                                            className={`block w-full px-3 py-2 border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-irko-blue text-sm dark:bg-slate-800 dark:text-white ${confirmPassword && password !== confirmPassword ? 'border-red-400 dark:border-red-600' : 'border-slate-200 dark:border-slate-700'}`}
                                         />
+                                        {confirmPassword && password !== confirmPassword && (
+                                            <p className="text-[10px] text-red-500 mt-1">As senhas não coincidem</p>
+                                        )}
                                     </div>
                                 </div>
 

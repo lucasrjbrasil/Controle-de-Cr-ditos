@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2, Download } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Plus, Search, Filter, Pencil, Trash2, Download, RotateCcw } from 'lucide-react';
 import { parseISO, isSameMonth, isAfter, endOfMonth } from 'date-fns';
 import { exportToExcel } from '../utils/exportUtils';
+import { useToast } from '../context/ToastContext';
 import CreditForm from './CreditForm';
 import { useCredits } from '../context/CreditsContext';
 import { usePerdcomp } from '../context/PerdcompContext';
@@ -45,9 +46,11 @@ export default function CreditsManager() {
     const { rates } = useSelic();
     const { perdcomps } = usePerdcomp();
     const { companies } = useCompanies();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const toast = useToast();
 
-    // Helper to get balance
-    const getBalanceAtCompetency = (credit, referenceDate = competencyDate) => {
+    // Memoized helper to calculate balance - now returns a function that uses cached data
+    const calculateBalanceForCredit = useCallback((credit, referenceDate) => {
         if (!referenceDate) return { value: 0, isFuture: false };
 
         try {
@@ -84,7 +87,26 @@ export default function CreditsManager() {
         } catch (e) {
             return { value: 0, isFuture: false };
         }
-    };
+    }, [perdcomps, rates]);
+
+    // Pre-calculate all balances once using useMemo - this is the key optimization
+    const balanceCache = useMemo(() => {
+        const cache = new Map();
+        credits.forEach(credit => {
+            cache.set(credit.id, calculateBalanceForCredit(credit, competencyDate));
+        });
+        return cache;
+    }, [credits, competencyDate, calculateBalanceForCredit]);
+
+    // Helper function that uses the cache
+    const getBalanceAtCompetency = useCallback((credit, referenceDate = competencyDate) => {
+        // If using default competencyDate, use cached value
+        if (referenceDate === competencyDate && balanceCache.has(credit.id)) {
+            return balanceCache.get(credit.id);
+        }
+        // Otherwise calculate on demand (for export with different date)
+        return calculateBalanceForCredit(credit, referenceDate);
+    }, [competencyDate, balanceCache, calculateBalanceForCredit]);
 
     const toggleDetails = (id) => {
         setExpandedId(prev => prev === id ? null : id);
@@ -106,16 +128,23 @@ export default function CreditsManager() {
         setEditingCredit(null);
     };
 
-    // Derived state for filtering
-    const filteredCredits = React.useMemo(() => {
+    // Create company lookup map for O(1) access
+    const companyMap = useMemo(() => {
+        const map = new Map();
+        companies.forEach(c => map.set(c.name, c));
+        return map;
+    }, [companies]);
+
+    // Derived state for filtering - now uses cached balances
+    const filteredCredits = useMemo(() => {
         let filtered = credits;
 
         // Text Search
         if (searchTerm) {
             const lowerTerm = searchTerm.toLowerCase();
             filtered = filtered.filter(credit => {
-                // Find the company associated with this credit
-                const company = companies.find(c => c.name === credit.empresa);
+                // Use map for O(1) lookup
+                const company = companyMap.get(credit.empresa);
                 const nickname = company?.nickname || '';
 
                 return (
@@ -127,16 +156,16 @@ export default function CreditsManager() {
             });
         }
 
-        // Available Balance Filter
+        // Available Balance Filter - uses cached balances (O(1) lookup)
         if (showOnlyAvailable) {
             filtered = filtered.filter(credit => {
-                const balanceInfo = getBalanceAtCompetency(credit);
+                const balanceInfo = balanceCache.get(credit.id) || { value: 0 };
                 return balanceInfo.value > 0;
             });
         }
 
         return filtered;
-    }, [credits, searchTerm, showOnlyAvailable, competencyDate, perdcomps, rates]);
+    }, [credits, searchTerm, showOnlyAvailable, balanceCache, companyMap]);
 
     const handleExportClick = () => {
         setExportOptions({
@@ -275,9 +304,26 @@ export default function CreditsManager() {
         }
     };
 
-    const totalBalance = filteredCredits.reduce((acc, credit) => {
-        return acc + getBalanceAtCompetency(credit).value;
-    }, 0);
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await Promise.all([refreshCredits(), refreshPerdcomps()]);
+            toast.success('Dados atualizados com sucesso!');
+        } catch (error) {
+            console.error('Erro ao atualizar dados:', error);
+            toast.error('Erro ao atualizar dados.');
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    // Use cached balances for total - no recalculation needed
+    const totalBalance = useMemo(() => {
+        return filteredCredits.reduce((acc, credit) => {
+            const cached = balanceCache.get(credit.id);
+            return acc + (cached?.value || 0);
+        }, 0);
+    }, [filteredCredits, balanceCache]);
 
     return (
         <div className="space-y-6">
@@ -288,6 +334,15 @@ export default function CreditsManager() {
                 </div>
 
                 <div className="flex gap-2">
+                    <Button
+                        variant="secondary"
+                        onClick={handleRefresh}
+                        className="gap-2"
+                        disabled={isRefreshing}
+                        title="Atualizar dados"
+                    >
+                        <RotateCcw size={20} className={isRefreshing ? 'animate-spin' : ''} />
+                    </Button>
                     <Button
                         variant="success"
                         onClick={handleExportClick}

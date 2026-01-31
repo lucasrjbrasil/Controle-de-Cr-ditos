@@ -11,6 +11,7 @@ import { PerdcompProvider } from './context/PerdcompContext';
 import { CompanyProvider } from './context/CompanyContext';
 import CompanyManager from './components/CompanyManager';
 import { LoanProvider } from './context/LoanContext';
+import { InstallmentProvider } from './context/InstallmentContext';
 import LoanManager from './components/LoanManager';
 import ExchangeRateManager from './components/ExchangeRateManager';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -20,6 +21,8 @@ import Login from './components/Login';
 import Register from './components/Register';
 import ProfileManager from './components/ProfileManager';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import Notifications from './components/Notifications';
+import { NotificationProvider } from './context/NotificationContext';
 import InstallmentManager from './components/InstallmentManager';
 import LeaseManager from './components/LeaseManager';
 import { bcbService } from './services/bcbService';
@@ -83,6 +86,7 @@ function Dashboard() {
             Olá, <span className="text-slate-900 dark:text-white font-semibold">{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário'}</span>
           </div>
           <div className="flex items-center gap-3">
+            <Notifications />
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors"
@@ -159,19 +163,25 @@ import { ToastProvider } from './context/ToastContext';
 function App() {
   return (
     <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <CreditsProvider>
-            <PerdcompProvider>
-              <CompanyProvider>
-                <LoanProvider>
-                  <AppContent />
-                </LoanProvider>
-              </CompanyProvider>
-            </PerdcompProvider>
-          </CreditsProvider>
-        </AuthProvider>
-      </ToastProvider>
+      <ErrorBoundary>
+        <NotificationProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <CreditsProvider>
+                <PerdcompProvider>
+                  <CompanyProvider>
+                    <LoanProvider>
+                      <InstallmentProvider>
+                        <AppContent />
+                      </InstallmentProvider>
+                    </LoanProvider>
+                  </CompanyProvider>
+                </PerdcompProvider>
+              </CreditsProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </NotificationProvider>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 }

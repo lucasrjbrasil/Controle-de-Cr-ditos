@@ -97,10 +97,26 @@ npm run lint     # Executa linter
 
 A aplicação utiliza Supabase Auth para autenticação de usuários. Funcionalidades:
 
-- Login com email/senha
-- Registro de novos usuários
+- Login com email/senha ou celular
+- Registro de novos usuários com validação de força de senha
+- Recuperação de senha por email
+- Rate limiting (bloqueio após 5 tentativas falhas)
 - Gerenciamento de perfil
 - Logout
+
+## 🛡️ Segurança
+
+O projeto implementa várias medidas de segurança:
+
+### Validação
+- **Força de senha**: Mínimo 8 caracteres, maiúscula, minúscula, número e especial
+- **CNPJ**: Validação com algoritmo oficial (frontend e backend SQL)
+- **Sanitização**: Proteção contra XSS em inputs de formulário
+
+### Proteções
+- **Rate limiting**: Bloqueio de 30s após 5 tentativas de login
+- **SessionStorage**: Dados financeiros sensíveis não persistem entre sessões
+- **Headers HTTP**: Veja [docs/SECURITY_HEADERS.md](docs/SECURITY_HEADERS.md) para configuração
 
 ## 💾 Banco de Dados
 

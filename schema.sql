@@ -15,6 +15,8 @@ create table if not exists "companies" (
 create table if not exists "credits" (
   "id" uuid primary key default uuid_generate_v4(),
   "empresa" text not null,
+  "cnpj" text,
+  "company_id" uuid references "companies"("id") on delete set null,
   "tipoCredito" text,
   "codigoReceita" text,
   "periodoApuracao" text,
@@ -63,6 +65,7 @@ create table if not exists "perdcomps" (
   "valorTotal" numeric,
   "valorCompensado" numeric, -- Appears in logic
   "status" text,
+  "isRestituicao" boolean default false, -- Added for distinctive logic
   "modified_by" text,
   "modified_at" timestamptz,
   "createdAt" timestamptz default now()

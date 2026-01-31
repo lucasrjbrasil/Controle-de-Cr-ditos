@@ -1,37 +1,15 @@
 import { supabase } from './supabase';
 
-const BCB_SELIC_MONTH_URL = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados?formato=json';
-const CACHE_KEY = 'selic_cache';
-const CURRENCIES_KEY = 'exchange_managed_currencies';
-const CACHE_duration = 24 * 60 * 60 * 1000; // 24 hours
-const HIST_CACHE_PREFIX = 'hist_exchange_v3_';
+// Use sessionStorage instead of localStorage for sensitive financial data (more secure - cleared on tab close)
+const CACHE_DURATION = 864e5, HIST_CACHE_PREFIX = 'hist_exchange_v3_', CACHE_TTL = 3e5;
+const DEFAULT_INDICATORS = { IPCA: { seriesId: 433, label: 'IPCA' }, IGPM: { seriesId: 189, label: 'IGP-M' } };
+const SESSION_CACHE = { selic: { data: null, lastFetch: 0 }, exchange: {}, indicators: {} };
+const pad = n => n.toString().padStart(2, '0');
+const toOlinda = d => { const [dd, mm, yyyy] = d.split('/'); return `${mm}-${dd}-${yyyy}`; };
 
-const INDICATORS_CONFIG_KEY = 'indicator_configs_cache';
-
-const DEFAULT_INDICATORS = {
-    'IPCA': { seriesId: 433, label: 'IPCA' },
-    'IGPM': { seriesId: 189, label: 'IGP-M' }
-};
-
-const DEFAULT_CURRENCIES = {
-    'USD': { buy: 1, sell: 10813 },
-    'EUR': { buy: 21619, sell: 21620 },
-    'GBP': { buy: 21623, sell: 21624 },
-    'CAD': { buy: 21635, sell: 21636 },
-    'JPY': { buy: 21621, sell: 21622 },
-    'CHF': { buy: 21625, sell: 21626 }
-};
-
-// In-memory cache for the session
-const SESSION_CACHE = {
-    selic: {
-        data: null,
-        lastFetch: 0
-    },
-    exchange: {}, // Will be keyed by currency
-    indicators: {} // Will be keyed by indicator
-};
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes 
+// Logger that only logs in development
+const devLog = import.meta.env.PROD ? () => { } : console.log;
+const devError = import.meta.env.PROD ? () => { } : console.error;
 
 export const COMMON_CODES = [
     { name: 'Dólar Americano', symbol: 'USD', buy: 1, sell: 10813 },
@@ -71,816 +49,299 @@ export const COMMON_CODES = [
     { name: 'Lev Búlgaro', symbol: 'BGN', buy: 21685, sell: 21686 }
 ];
 
+const DEFAULT_CURRENCIES = Object.fromEntries(COMMON_CODES.map(c => [c.symbol, { buy: c.buy, sell: c.sell }]));
+
 class BCBService {
-    _clearSelicCache() {
-        SESSION_CACHE.selic.data = null;
-        SESSION_CACHE.selic.lastFetch = 0;
-    }
-
-    _clearExchangeCache(currency) {
-        if (currency) {
-            delete SESSION_CACHE.exchange[currency.toUpperCase()];
-        } else {
-            SESSION_CACHE.exchange = {};
-        }
-    }
-
-    _clearIndicatorCache(indicator) {
-        if (indicator) {
-            delete SESSION_CACHE.indicators[indicator.toUpperCase()];
-        } else {
-            SESSION_CACHE.indicators = {};
-        }
-    }
-
-    _normalizeValue(val) {
-        if (typeof val === 'string') {
-            return val.replace(',', '.');
-        }
-        return val;
-    }
-
-    // Converts any supported date format to YYYY-MM-DD (for DB storage/querying)
-    _toDbDate(dateStr) {
-        if (!dateStr) return null;
-        const s = dateStr.trim();
-
-        // Already YYYY-MM-DD
-        if (s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
-
-        // DD/MM/YYYY
-        if (s.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-            const parts = s.split('/');
-            return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-
-        return s;
-    }
-
-    // Converts YYYY-MM-DD (from DB) to DD/MM/YYYY (for App)
-    _fromDbDate(dateStr) {
-        if (!dateStr) return '';
-        const s = dateStr.trim();
-
-        // ISO YYYY-MM-DD
-        if (s.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            const parts = s.split('-');
-            return `${parts[2]}/${parts[1]}/${parts[0]}`;
-        }
-
-        // Already DD/MM/YYYY (fallback)
-        if (s.match(/^\d{2}\/\d{2}\/\d{4}$/)) return s;
-
-        return s;
-    }
-
-    _normalizeDate(dateStr) {
-        return this._fromDbDate(dateStr);
-    }
-
-    async _fetchOlindaExchangeRates(startDate, endDate, currency) {
-        try {
-            // Olinda URL format: MM-DD-YYYY
-            const toOlindaDate = (d) => {
-                const parts = d.split('/');
-                return `${parts[1]}-${parts[0]}-${parts[2]}`;
-            };
-
-            const s = toOlindaDate(startDate);
-            const e = toOlindaDate(endDate);
-            const url = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(codigoMoeda='${currency.toUpperCase()}',dataInicial='${s}',dataFinal='${e}')?$top=1000&$format=json`;
-
-            const res = await this._robustFetch(url);
-            if (res && res.value) {
-                return res.value.map(item => ({
-                    data: this._fromDbDate(item.dataHoraCotacao.split(' ')[0]),
-                    valor: {
-                        buy: item.cotacaoCompra,
-                        sell: item.cotacaoVenda
-                    },
-                    source: 'OLINDA'
-                }));
-            }
-            return [];
-        } catch (error) {
-            console.warn(`Olinda fetch failed for ${currency}:`, error);
-            return [];
-        }
-    }
+    _clearCache = (type, key) => key ? delete SESSION_CACHE[type][key.toUpperCase()] : SESSION_CACHE[type] = type === 'selic' ? { data: null, lastFetch: 0 } : {};
+    _normalizeValue = v => typeof v === 'string' ? v.replace(',', '.') : v;
+    _toDbDate = d => !d ? null : /^\d{4}-\d{2}-\d{2}$/.test(d.trim()) ? d.trim() : /^\d{2}\/\d{2}\/\d{4}$/.test(d.trim()) ? d.trim().split('/').reverse().join('-') : d.trim();
+    _fromDbDate = d => !d ? '' : /^\d{4}-\d{2}-\d{2}$/.test(d.trim()) ? d.trim().split('-').reverse().join('/') : d.trim();
+    _fmtDate = d => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    _sortByDate = (arr, asc = true) => arr.sort((a, b) => { const p = s => { const [d, m, y] = s.split('/').map(Number); return new Date(y, m - 1, d); }; return asc ? p(a.data) - p(b.data) : p(b.data) - p(a.data); });
+    _mapRate = (r, isCurrency) => isCurrency ? { data: this._fromDbDate(r.date), valor: { buy: r.buyValue, sell: r.sellValue }, isOverridden: r.source === 'MANUAL', source: r.source } : { data: r.date || this._fromDbDate(r.date), valor: r.value, isOverridden: r.source === 'MANUAL', source: r.source };
 
     async _robustFetch(url) {
-        const timestamp = Date.now();
-        const fetchOptions = { cache: 'no-store' };
+        const t = Date.now(), opts = { cache: 'no-store' };
 
+        // SECURITY: Try direct API call first (most secure)
         try {
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}&disableCache=${timestamp}`;
-            const response = await fetch(proxyUrl, fetchOptions);
-            if (response.ok) return await response.json();
-        } catch (e) {
-            console.warn("AllOrigins proxy failed.", e);
+            const r = await fetch(url, opts);
+            if (r.ok) return r.json();
+        } catch {
+            devLog('[BCBService] Direct API call failed, trying CORS proxies as fallback');
         }
 
-        try {
-            const urlWithCache = url + `&_t=${timestamp}`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(urlWithCache)}`;
-            const response = await fetch(proxyUrl, fetchOptions);
-            if (response.ok) return await response.json();
-        } catch (e) {
-            console.warn("CORSProxy.io failed.", e);
+        // SECURITY WARNING: CORS proxies can intercept data - used only as fallback
+        // Consider setting up your own proxy or Supabase Edge Function for production
+        const corsProxies = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}&disableCache=${t}`,
+            `https://corsproxy.io/?${encodeURIComponent(url + `&_t=${t}`)}`
+        ];
+
+        for (const proxyUrl of corsProxies) {
+            try {
+                const r = await fetch(proxyUrl, opts);
+                if (r.ok) {
+                    devLog('[BCBService] Using CORS proxy (consider using direct API or own proxy for production)');
+                    return r.json();
+                }
+            } catch { }
         }
 
-        try {
-            const response = await fetch(url, fetchOptions);
-            if (response.ok) return await response.json();
-        } catch (e) {
-            console.warn("Direct fetch failed.", e);
-        }
-
-        throw new Error("Falha de conexão com o BCB (todas as tentativas falharam).");
+        throw new Error("Falha de conexão com o BCB.");
     }
 
-    async getSeriesIds(currency) {
-        const managed = await this.getManagedCurrencies();
-        const ids = managed[currency.toUpperCase()];
-        if (!ids) return null;
-        return ids;
+    async _fetchOlinda(start, end, currency) {
+        try {
+            const res = await this._robustFetch(`https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(codigoMoeda='${currency.toUpperCase()}',dataInicial='${toOlinda(start)}',dataFinal='${toOlinda(end)}')?$top=1000&$format=json`);
+            return res?.value?.map(i => ({ data: this._fromDbDate(i.dataHoraCotacao.split(' ')[0]), valor: { buy: i.cotacaoCompra, sell: i.cotacaoVenda }, source: 'OLINDA' })) || [];
+        } catch { return []; }
     }
+
+    async getSeriesIds(currency) { return (await this.getManagedCurrencies())[currency.toUpperCase()] || null; }
 
     async getManagedCurrencies() {
         try {
-            const { data, error } = await supabase
-                .from('exchange_config')
-                .select('*');
-
+            const { data, error } = await supabase.from('exchange_config').select('*');
             if (error) throw error;
-
-            if (data && data.length > 0) {
-                const configMap = {};
-                data.forEach(item => {
-                    configMap[item.symbol] = { buy: item.buySeriesId, sell: item.sellSeriesId };
-                });
-                return configMap;
-            }
-
-            for (const [symbol, ids] of Object.entries(DEFAULT_CURRENCIES)) {
-                await this.addManagedCurrency(symbol, ids.buy, ids.sell);
-            }
+            if (data?.length) return Object.fromEntries(data.map(i => [i.symbol, { buy: i.buySeriesId, sell: i.sellSeriesId }]));
+            await Promise.all(Object.entries(DEFAULT_CURRENCIES).map(([s, ids]) => this.addManagedCurrency(s, ids.buy, ids.sell)));
             return DEFAULT_CURRENCIES;
-        } catch (error) {
-            console.error('Error fetching managed currencies from Supabase:', error);
-            return DEFAULT_CURRENCIES;
-        }
+        } catch { return DEFAULT_CURRENCIES; }
     }
 
-    async clearHistoryCache(currency) {
+    clearHistoryCache(currency) {
         const prefix = currency ? `${HIST_CACHE_PREFIX}${currency.toUpperCase()}_` : HIST_CACHE_PREFIX;
-        Object.keys(localStorage).forEach(key => {
-            if (key.startsWith(prefix)) {
-                localStorage.removeItem(key);
-            }
-        });
-
-        if (!currency) {
-            localStorage.removeItem(CACHE_KEY);
-            this._clearSelicCache();
-        }
+        Object.keys(sessionStorage).filter(k => k.startsWith(prefix)).forEach(k => sessionStorage.removeItem(k));
+        if (!currency) this._clearCache('selic');
     }
 
     async addManagedCurrency(symbol, buySeriesId, sellSeriesId) {
-        try {
-            const { error } = await supabase
-                .from('exchange_config')
-                .upsert({
-                    symbol: symbol.toUpperCase(),
-                    buySeriesId: parseInt(buySeriesId),
-                    sellSeriesId: parseInt(sellSeriesId),
-                    updatedAt: new Date().toISOString()
-                });
-            if (error) throw error;
-        } catch (error) {
-            console.error('Error adding managed currency to Supabase:', error);
-            throw error;
-        }
+        const { error } = await supabase.from('exchange_config').upsert({ symbol: symbol.toUpperCase(), buySeriesId: +buySeriesId, sellSeriesId: +sellSeriesId, updatedAt: new Date().toISOString() });
+        if (error) throw error;
     }
 
     async removeManagedCurrency(symbol) {
-        try {
-            const { error } = await supabase
-                .from('exchange_config')
-                .delete()
-                .eq('symbol', symbol.toUpperCase());
-            if (error) throw error;
-        } catch (error) {
-            console.error('Error removing managed currency from Supabase:', error);
-            throw error;
-        }
+        const { error } = await supabase.from('exchange_config').delete().eq('symbol', symbol.toUpperCase());
+        if (error) throw error;
     }
 
     async fetchSelicRates() {
         try {
-            const nowTime = Date.now();
-            if (SESSION_CACHE.selic.data && (nowTime - SESSION_CACHE.selic.lastFetch < CACHE_TTL)) {
-                return SESSION_CACHE.selic.data;
-            }
-
-            const { data: storedRates, error: dbError } = await supabase
-                .from('selic_overrides')
-                .select('*')
-                .order('date', { ascending: true });
-
-            if (dbError) throw dbError;
-
-            let finalRates = (storedRates || []).map(r => ({
-                data: r.date,
-                valor: r.value,
-                isOverridden: r.source === 'MANUAL',
-                source: r.source
-            }));
-
-            let needsBCBFetch = false;
-            if (finalRates.length === 0) {
-                needsBCBFetch = true;
-            } else {
-                const parseToDateValue = (dateStr) => {
-                    const parts = dateStr.split('/');
-                    if (parts.length === 3) return parseInt(parts[2]) * 10000 + parseInt(parts[1]) * 100 + parseInt(parts[0]);
-                    return 0;
-                };
-
-                const latest = [...finalRates].sort((a, b) => parseToDateValue(b.data) - parseToDateValue(a.data))[0];
-                const [d, m, y] = latest.data.split('/');
-                const now = new Date();
-                const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
-                const currentYear = now.getFullYear().toString();
-
-                if (m !== currentMonth || y !== currentYear) {
-                    needsBCBFetch = true;
-                }
-            }
-
-            if (needsBCBFetch) {
+            if (SESSION_CACHE.selic.data && Date.now() - SESSION_CACHE.selic.lastFetch < CACHE_TTL) return SESSION_CACHE.selic.data;
+            const { data: stored, error } = await supabase.from('selic_overrides').select('*').order('date', { ascending: true });
+            if (error) throw error;
+            let rates = (stored || []).map(r => ({ data: r.date, valor: r.value, isOverridden: r.source === 'MANUAL', source: r.source }));
+            if (this._needsSync(rates)) {
                 try {
-                    const now = new Date();
-                    const sixMonthsAgo = new Date();
-                    sixMonthsAgo.setMonth(now.getMonth() - 6);
-
-                    const pad = (n) => n.toString().padStart(2, '0');
-                    const startDate = `01/${pad(sixMonthsAgo.getMonth() + 1)}/${sixMonthsAgo.getFullYear()}`;
-                    const endDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-
-                    const syncUrl = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados?formato=json&dataInicial=${startDate}&dataFinal=${endDate}`;
-                    const bcbData = await this._robustFetch(syncUrl);
-
-                    if (bcbData && Array.isArray(bcbData)) {
-                        const updates = bcbData.map(r => ({
-                            date: this._normalizeDate(r.data),
-                            value: parseFloat(this._normalizeValue(r.valor)),
-                            source: 'OFFICIAL'
-                        }));
-
-                        const manualDates = new Set(finalRates.filter(r => r.source === 'MANUAL').map(r => r.data));
-                        const filteredUpdates = updates.filter(u => !manualDates.has(u.date));
-
-                        if (filteredUpdates.length > 0) {
-                            await supabase.from('selic_overrides').upsert(filteredUpdates, { onConflict: 'date' });
-
-                            filteredUpdates.forEach(update => {
-                                const index = finalRates.findIndex(r => r.data === update.date);
-                                if (index !== -1) {
-                                    if (finalRates[index].source === 'OFFICIAL') {
-                                        finalRates[index].valor = update.value;
-                                    }
-                                } else {
-                                    finalRates.push({
-                                        data: update.date,
-                                        valor: update.value,
-                                        isOverridden: false,
-                                        source: 'OFFICIAL'
-                                    });
-                                }
-                            });
+                    const now = new Date(), ago = new Date(); ago.setMonth(now.getMonth() - 6);
+                    const bcb = await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados?formato=json&dataInicial=01/${pad(ago.getMonth() + 1)}/${ago.getFullYear()}&dataFinal=${this._fmtDate(now)}`);
+                    if (Array.isArray(bcb)) {
+                        const manual = new Set(rates.filter(r => r.source === 'MANUAL').map(r => r.data));
+                        const updates = bcb.map(r => ({ date: this._fromDbDate(r.data), value: parseFloat(this._normalizeValue(r.valor)), source: 'OFFICIAL' })).filter(u => !manual.has(u.date));
+                        if (updates.length) {
+                            await supabase.from('selic_overrides').upsert(updates, { onConflict: 'date' });
+                            updates.forEach(u => { const i = rates.findIndex(r => r.data === u.date); i !== -1 && rates[i].source === 'OFFICIAL' ? rates[i].valor = u.value : i === -1 && rates.push({ data: u.date, valor: u.value, isOverridden: false, source: 'OFFICIAL' }); });
                         }
                     }
-                } catch (bcbError) {
-                    console.warn("Could not sync with BCB:", bcbError);
-                }
+                } catch { }
             }
-
-            const result = finalRates.sort((a, b) => {
-                const [da, ma, ya] = a.data.split('/').map(Number);
-                const [db, mb, yb] = b.data.split('/').map(Number);
-                return new Date(ya, ma - 1, da) - new Date(yb, mb - 1, db);
-            });
-
-            SESSION_CACHE.selic.data = result;
-            SESSION_CACHE.selic.lastFetch = Date.now();
+            const result = this._sortByDate(rates);
+            SESSION_CACHE.selic = { data: result, lastFetch: Date.now() };
             return result;
-        } catch (error) {
-            console.error("Error in fetchSelicRates:", error);
-            return SESSION_CACHE.selic.data || [];
-        }
+        } catch { return SESSION_CACHE.selic.data || []; }
+    }
+
+    _needsSync(rates) {
+        if (!rates.length) return true;
+        const p = d => { const [dd, mm, yyyy] = d.split('/').map(Number); return yyyy * 1e4 + mm * 100 + dd; };
+        const [, m, y] = [...rates].sort((a, b) => p(b.data) - p(a.data))[0].data.split('/');
+        const now = new Date();
+        return m !== pad(now.getMonth() + 1) || y !== now.getFullYear().toString();
     }
 
     async saveOverride(date, value, source = 'MANUAL', currency = null) {
         const dbDate = this._toDbDate(date);
-        try {
-            if (currency) {
-                const { error } = await supabase
-                    .from('exchange_overrides')
-                    .upsert({
-                        currency: currency.toUpperCase(),
-                        date: dbDate,
-                        buyValue: value.buy,
-                        sellValue: value.sell,
-                        source
-                    }, { onConflict: 'currency,date' });
-                if (error) throw error;
-                this._clearExchangeCache(currency);
-            } else {
-                const { error } = await supabase
-                    .from('selic_overrides')
-                    .upsert({
-                        date: dbDate,
-                        value: parseFloat(value),
-                        source
-                    });
-                if (error) throw error;
-                this._clearSelicCache();
-            }
-        } catch (error) {
-            console.error('Error saving override:', error);
-            throw error;
+        if (currency) {
+            const { error } = await supabase.from('exchange_overrides').upsert({ currency: currency.toUpperCase(), date: dbDate, buyValue: value.buy, sellValue: value.sell, source }, { onConflict: 'currency,date' });
+            if (error) throw error;
+            this._clearCache('exchange', currency);
+        } else {
+            const { error } = await supabase.from('selic_overrides').upsert({ date: dbDate, value: parseFloat(value), source });
+            if (error) throw error;
+            this._clearCache('selic');
         }
     }
 
-    async saveOverridesBatch(updates, currency = null) {
-        try {
-            for (const update of updates) {
-                await this.saveOverride(update.date, update.value || update, update.source || 'MANUAL', currency);
-            }
-        } catch (error) {
-            console.error('Error in batch save:', error);
-            throw error;
-        }
-    }
+    async saveOverridesBatch(updates, currency = null) { for (const u of updates) await this.saveOverride(u.date, u.value || u, u.source || 'MANUAL', currency); }
 
     async removeOverride(date, currency = null) {
-        const normalizedDate = this._normalizeDate(date);
-        try {
-            if (currency) {
-                const { error } = await supabase
-                    .from('exchange_overrides')
-                    .delete()
-                    .eq('currency', currency.toUpperCase())
-                    .eq('date', normalizedDate);
-                if (error) throw error;
-                this._clearExchangeCache(currency);
-            } else {
-                const { error } = await supabase
-                    .from('selic_overrides')
-                    .delete()
-                    .eq('date', normalizedDate);
-                if (error) throw error;
-                this._clearSelicCache();
-            }
-        } catch (error) {
-            console.error('Error removing override:', error);
-            throw error;
+        const dbDate = this._toDbDate(date);
+        if (currency) {
+            const { error } = await supabase.from('exchange_overrides').delete().eq('currency', currency.toUpperCase()).eq('date', dbDate);
+            if (error) throw error;
+            this._clearCache('exchange', currency);
+        } else {
+            const { error } = await supabase.from('selic_overrides').delete().eq('date', dbDate);
+            if (error) throw error;
+            this._clearCache('selic');
         }
     }
 
     async clearAllOverrides(currency) {
-        try {
-            const { error } = await supabase
-                .from('exchange_overrides')
-                .delete()
-                .eq('currency', currency.toUpperCase());
-            if (error) throw error;
-            this._clearExchangeCache(currency);
-        } catch (error) {
-            console.error('Error clearing all overrides:', error);
-            throw error;
-        }
+        const { error } = await supabase.from('exchange_overrides').delete().eq('currency', currency.toUpperCase());
+        if (error) throw error;
+        this._clearCache('exchange', currency);
     }
 
     async fetchRateForMonth(month, year) {
-        try {
-            const lastDay = new Date(year, month, 0).getDate();
-            const startDate = `01/${month}/${year}`;
-            const endDate = `${lastDay}/${month}/${year}`;
-            const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados?formato=json&dataInicial=${startDate}&dataFinal=${endDate}`;
-
-            const data = await this._robustFetch(url);
-            if (data && data.length > 0) return this._normalizeValue(data[0].valor);
-            return null;
-        } catch (error) {
-            console.error("Error fetching rate for month:", month, year, error);
-            throw error;
-        }
+        const lastDay = new Date(year, month, 0).getDate();
+        const data = await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados?formato=json&dataInicial=01/${month}/${year}&dataFinal=${lastDay}/${month}/${year}`);
+        return data?.length ? this._normalizeValue(data[0].valor) : null;
     }
 
     async fetchExchangeRateForDate(dateStr, currency) {
-        try {
-            const olinda = await this._fetchOlindaExchangeRates(dateStr, dateStr, currency);
-            if (olinda && olinda.length > 0) return olinda[0].valor;
+        const olinda = await this._fetchOlinda(dateStr, dateStr, currency);
+        if (olinda?.length) return olinda[0].valor;
+        const ids = await this.getSeriesIds(currency);
+        if (!ids) throw new Error('Currency not supported');
+        const fetch1 = async id => { try { const d = await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${id}/dados?formato=json&dataInicial=${dateStr}&dataFinal=${dateStr}`); return d?.length ? this._normalizeValue(d[0].valor) : null; } catch { return null; } };
+        const [buy, sell] = await Promise.all([fetch1(ids.buy), fetch1(ids.sell)]);
+        return buy || sell ? { buy, sell } : null;
+    }
 
+    async fetchExchangeRatesForRange(start, end, currency) {
+        const key = `${HIST_CACHE_PREFIX}${currency.toUpperCase()}_${start.replace(/\//g, '')}_${end.replace(/\//g, '')}`;
+        const cached = sessionStorage.getItem(key);
+        if (cached) { const { timestamp, data } = JSON.parse(cached); if (Date.now() - timestamp < CACHE_DURATION) return data; }
+        let result = await this._fetchOlinda(start, end, currency);
+        if (!result.length) {
             const ids = await this.getSeriesIds(currency);
-            if (!ids) throw new Error('Currency not supported');
-
-            const fetchOne = async (seriesId) => {
-                const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${seriesId}/dados?formato=json&dataInicial=${dateStr}&dataFinal=${dateStr}`;
-                try {
-                    const data = await this._robustFetch(url);
-                    return (data && data.length > 0) ? this._normalizeValue(data[0].valor) : null;
-                } catch (e) {
-                    return null;
-                }
-            };
-
-            const [buy, sell] = await Promise.all([fetchOne(ids.buy), fetchOne(ids.sell)]);
-            if (buy || sell) return { buy, sell };
-            return null;
-        } catch (error) {
-            console.error(`Error fetching exchange for ${currency} ${dateStr}:`, error);
-            throw error;
+            if (ids) {
+                const fetch1 = async id => { try { return (await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${id}/dados?formato=json&dataInicial=${start}&dataFinal=${end}`)).map(i => ({ data: this._fromDbDate(i.data), valor: this._normalizeValue(i.valor) })); } catch { return []; } };
+                const [buy, sell] = await Promise.all([fetch1(ids.buy), fetch1(ids.sell)]);
+                const m = new Map();
+                buy.forEach(i => m.set(i.data, { date: i.data, buy: i.valor, sell: null }));
+                sell.forEach(i => { const e = m.get(i.data); e ? e.sell = i.valor : m.set(i.data, { date: i.data, buy: null, sell: i.valor }); });
+                result = [...m.values()].map(i => ({ data: i.date, valor: { buy: i.buy, sell: i.sell }, source: 'BCB_SGS' }));
+            }
         }
+        if (result.length) sessionStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: result }));
+        return result;
     }
 
-    async fetchExchangeRatesForRange(startDate, endDate, currency) {
-        try {
-            const cacheKey = `${HIST_CACHE_PREFIX}${currency.toUpperCase()}_${startDate.replace(/\//g, '')}_${endDate.replace(/\//g, '')}`;
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) {
-                const { timestamp, data } = JSON.parse(cached);
-                if (Date.now() - timestamp < CACHE_duration) return data;
-            }
-
-            // Try Olinda first
-            let result = await this._fetchOlindaExchangeRates(startDate, endDate, currency);
-
-            // Fallback to SGS if Olinda results are empty
-            if (result.length === 0) {
-                const ids = await this.getSeriesIds(currency);
-                if (ids) {
-                    const fetchOne = async (seriesId) => {
-                        const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${seriesId}/dados?formato=json&dataInicial=${startDate}&dataFinal=${endDate}`;
-                        try {
-                            const data = await this._robustFetch(url);
-                            return data.map(item => ({
-                                data: this._fromDbDate(item.data),
-                                valor: this._normalizeValue(item.valor)
-                            }));
-                        } catch (e) {
-                            return [];
-                        }
-                    };
-
-                    const [buyData, sellData] = await Promise.all([fetchOne(ids.buy), fetchOne(ids.sell)]);
-                    const combined = new Map();
-                    buyData.forEach(item => combined.set(item.data, { date: item.data, buy: item.valor, sell: null }));
-                    sellData.forEach(item => {
-                        if (combined.has(item.data)) combined.get(item.data).sell = item.valor;
-                        else combined.set(item.data, { date: item.data, buy: null, sell: item.valor });
-                    });
-
-                    result = Array.from(combined.values()).map(item => ({
-                        data: item.date,
-                        valor: { buy: item.buy, sell: item.sell },
-                        source: 'BCB_SGS'
-                    }));
-                }
-            }
-
-            if (result.length > 0) {
-                localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: result }));
-            }
-            return result;
-        } catch (error) {
-            console.error(`Error fetching exchange range for ${currency}:`, error);
-            throw error;
-        }
-    }
-
-    async fetchExchangeRatesWithHistory(currency, startDate, endDate) {
+    async fetchExchangeRatesWithHistory(currency, start, end) {
         if (!currency || currency === 'BRL') return [];
-
+        const [dbStart, dbEnd, curr] = [this._toDbDate(start), this._toDbDate(end), currency.toUpperCase()];
         try {
-            const dbStartDate = this._toDbDate(startDate);
-            const dbEndDate = this._toDbDate(endDate);
-
-            const { data: stored, error: dbError } = await supabase
-                .from('exchange_overrides')
-                .select('*')
-                .eq('currency', currency.toUpperCase())
-                .gte('date', dbStartDate)
-                .lte('date', dbEndDate);
-
-            if (dbError) throw dbError;
-
-            if (!stored || stored.length === 0) {
+            const { data: stored, error } = await supabase.from('exchange_overrides').select('*').eq('currency', curr).gte('date', dbStart).lte('date', dbEnd);
+            if (error) throw error;
+            if (!stored?.length) {
                 try {
-                    // This fetches from BCB (returns DD/MM/YYYY dates and values)
-                    const history = await this.fetchExchangeRatesForRange(startDate, endDate, currency);
-
-                    if (history && history.length > 0) {
-                        const updates = history.map(h => ({
-                            currency: currency.toUpperCase(),
-                            date: this._toDbDate(h.data || h.date), // Robustness
-                            buyValue: parseFloat((h.valor || h.value)?.buy || 0),
-                            sellValue: parseFloat((h.valor || h.value)?.sell || 0),
-                            source: 'BCB'
-                        }));
-                        await supabase.from('exchange_overrides').upsert(updates, { onConflict: 'currency,date' });
-                    }
-                } catch (bcbError) {
-                    console.warn(`BCB fallback failed for ${currency}:`, bcbError);
-                }
+                    const h = await this.fetchExchangeRatesForRange(start, end, currency);
+                    if (h?.length) await supabase.from('exchange_overrides').upsert(h.map(r => ({ currency: curr, date: this._toDbDate(r.data || r.date), buyValue: parseFloat((r.valor || r.value)?.buy || 0), sellValue: parseFloat((r.valor || r.value)?.sell || 0), source: 'BCB' })), { onConflict: 'currency,date' });
+                } catch { }
             }
-
-            // Re-fetch or use logic to merge. For simplicity re-fetching to ensure consistent source of truth
-            const { data: finalData } = await supabase
-                .from('exchange_overrides')
-                .select('*')
-                .eq('currency', currency.toUpperCase())
-                .gte('date', dbStartDate)
-                .lte('date', dbEndDate)
-                .order('date', { ascending: true });
-
-            return (finalData || []).map(r => ({
-                data: this._fromDbDate(r.date), // Return as DD/MM/YYYY for the app
-                valor: { buy: r.buyValue, sell: r.sellValue },
-                isOverridden: r.source === 'MANUAL',
-                source: r.source
-            }));
-        } catch (error) {
-            console.error(`Error in fetchExchangeRatesWithHistory for ${currency}:`, error);
-            return [];
-        }
+            const { data: final } = await supabase.from('exchange_overrides').select('*').eq('currency', curr).gte('date', dbStart).lte('date', dbEnd).order('date', { ascending: true });
+            return (final || []).map(r => this._mapRate(r, true));
+        } catch { return []; }
     }
 
     async fetchExchangeRates(currency) {
         if (!currency || currency === 'BRL') return [];
-
         const curr = currency.toUpperCase();
-        const nowTime = Date.now();
-        if (SESSION_CACHE.exchange[curr] && (nowTime - SESSION_CACHE.exchange[curr].lastFetch < CACHE_TTL)) {
-            return SESSION_CACHE.exchange[curr].data;
-        }
-
-        const { data } = await supabase
-            .from('exchange_overrides')
-            .select('*')
-            .eq('currency', curr)
-            .order('date', { ascending: false })
-            .limit(100);
-
-        const result = (data || []).map(r => ({
-            data: this._fromDbDate(r.date),
-            valor: { buy: r.buyValue, sell: r.sellValue },
-            isOverridden: r.source === 'MANUAL',
-            source: r.source
-        }));
-
-        SESSION_CACHE.exchange[curr] = {
-            data: result,
-            lastFetch: Date.now()
-        };
-
+        if (SESSION_CACHE.exchange[curr] && Date.now() - SESSION_CACHE.exchange[curr].lastFetch < CACHE_TTL) return SESSION_CACHE.exchange[curr].data;
+        const { data } = await supabase.from('exchange_overrides').select('*').eq('currency', curr).order('date', { ascending: false }).limit(100);
+        const result = (data || []).map(r => this._mapRate(r, true));
+        SESSION_CACHE.exchange[curr] = { data: result, lastFetch: Date.now() };
         return result;
     }
 
     async verifySeries(seriesId) {
-        const today = new Date();
-        const past = new Date();
-        past.setDate(today.getDate() - 10);
-
-        const pad = (n) => n.toString().padStart(2, '0');
-        const d_end = `${pad(today.getDate())}/${pad(today.getMonth() + 1)}/${today.getFullYear()}`;
-        const d_start = `${pad(past.getDate())}/${pad(past.getMonth() + 1)}/${past.getFullYear()}`;
-
-        const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${seriesId}/dados?formato=json&dataInicial=${d_start}&dataFinal=${d_end}`;
-        const data = await this._robustFetch(url);
-        return data.reverse().slice(0, 5).map(item => ({
-            date: this._normalizeDate(item.data),
-            value: this._normalizeValue(item.valor)
-        }));
+        const today = new Date(), past = new Date(); past.setDate(today.getDate() - 10);
+        const data = await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${seriesId}/dados?formato=json&dataInicial=${this._fmtDate(past)}&dataFinal=${this._fmtDate(today)}`);
+        return data.reverse().slice(0, 5).map(i => ({ date: this._fromDbDate(i.data), value: this._normalizeValue(i.valor) }));
     }
 
     async getIndicatorConfigs() {
         try {
-            const { data, error } = await supabase
-                .from('indicator_config')
-                .select('*');
-
+            const { data, error } = await supabase.from('indicator_config').select('*');
             if (error) throw error;
-
-            if (data && data.length > 0) {
-                const configMap = {};
-                data.forEach(item => {
-                    configMap[item.indicator] = { seriesId: item.seriesId, label: item.label || item.indicator };
-                });
-                return configMap;
-            }
-
-            // If empty, seed with defaults (optional, or just return defaults)
-            return DEFAULT_INDICATORS;
-        } catch (error) {
-            console.error('Error fetching indicator configs:', error);
-            return DEFAULT_INDICATORS;
-        }
+            return data?.length ? Object.fromEntries(data.map(i => [i.indicator, { seriesId: i.seriesId, label: i.label || i.indicator }])) : DEFAULT_INDICATORS;
+        } catch { return DEFAULT_INDICATORS; }
     }
 
     async addIndicatorConfig(indicator, seriesId, label) {
-        try {
-            const { error } = await supabase
-                .from('indicator_config')
-                .upsert({
-                    indicator: indicator.toUpperCase(),
-                    seriesId: parseInt(seriesId),
-                    label: label || indicator.toUpperCase(),
-                    updatedAt: new Date().toISOString()
-                });
-            if (error) throw error;
-            this._clearIndicatorCache(indicator);
-        } catch (error) {
-            console.error('Error adding indicator config:', error);
-            throw error;
-        }
+        const { error } = await supabase.from('indicator_config').upsert({ indicator: indicator.toUpperCase(), seriesId: +seriesId, label: label || indicator.toUpperCase(), updatedAt: new Date().toISOString() });
+        if (error) throw error;
+        this._clearCache('indicators', indicator);
     }
 
     async removeIndicatorConfig(indicator) {
-        try {
-            const { error } = await supabase
-                .from('indicator_config')
-                .delete()
-                .eq('indicator', indicator.toUpperCase());
-            if (error) throw error;
-
-            // Also clean up overrides for this indicator
-            await supabase
-                .from('indicator_overrides')
-                .delete()
-                .eq('indicator', indicator.toUpperCase());
-
-            this._clearIndicatorCache(indicator);
-        } catch (error) {
-            console.error('Error removing indicator config:', error);
-            throw error;
-        }
+        const ind = indicator.toUpperCase();
+        const { error } = await supabase.from('indicator_config').delete().eq('indicator', ind);
+        if (error) throw error;
+        await supabase.from('indicator_overrides').delete().eq('indicator', ind);
+        this._clearCache('indicators', indicator);
     }
 
     async fetchIndicatorRates(indicator) {
         if (!indicator) return [];
         const ind = indicator.toUpperCase();
-
         try {
-            const nowTime = Date.now();
-            if (SESSION_CACHE.indicators[ind] && (nowTime - SESSION_CACHE.indicators[ind].lastFetch < CACHE_TTL)) {
-                return SESSION_CACHE.indicators[ind].data;
-            }
-
-            const { data: stored, error: dbError } = await supabase
-                .from('indicator_overrides')
-                .select('*')
-                .eq('indicator', ind)
-                .order('date', { ascending: true });
-
-            if (dbError) throw dbError;
-
-            let finalRates = (stored || []).map(r => ({
-                data: this._fromDbDate(r.date),
-                valor: r.value,
-                isOverridden: r.source === 'MANUAL',
-                source: r.source
-            }));
-
-            // Sync logic if needed (similar to Selic)
-            // For now, return what's in DB
-            const result = finalRates.sort((a, b) => {
-                const [da, ma, ya] = a.data.split('/').map(Number);
-                const [db, mb, yb] = b.data.split('/').map(Number);
-                return new Date(ya, ma - 1, da) - new Date(yb, mb - 1, db);
-            });
-
-            SESSION_CACHE.indicators[ind] = {
-                data: result,
-                lastFetch: Date.now()
-            };
+            if (SESSION_CACHE.indicators[ind] && Date.now() - SESSION_CACHE.indicators[ind].lastFetch < CACHE_TTL) return SESSION_CACHE.indicators[ind].data;
+            const { data: stored, error } = await supabase.from('indicator_overrides').select('*').eq('indicator', ind).order('date', { ascending: true });
+            if (error) throw error;
+            const result = this._sortByDate((stored || []).map(r => ({ data: this._fromDbDate(r.date), valor: r.value, isOverridden: r.source === 'MANUAL', source: r.source })));
+            SESSION_CACHE.indicators[ind] = { data: result, lastFetch: Date.now() };
             return result;
-        } catch (error) {
-            console.error(`Error in fetchIndicatorRates for ${ind}:`, error);
-            return SESSION_CACHE.indicators[ind]?.data || [];
-        }
+        } catch { return SESSION_CACHE.indicators[ind]?.data || []; }
     }
 
     async saveIndicatorOverride(indicator, date, value, source = 'MANUAL') {
         const ind = indicator.toUpperCase();
-        const dbDate = this._toDbDate(date);
-        try {
-            const { error } = await supabase
-                .from('indicator_overrides')
-                .upsert({
-                    indicator: ind,
-                    date: dbDate,
-                    value: parseFloat(value),
-                    source
-                }, { onConflict: 'indicator,date' });
-            if (error) throw error;
-            this._clearIndicatorCache(ind);
-        } catch (error) {
-            console.error('Error saving indicator override:', error);
-            throw error;
-        }
+        const { error } = await supabase.from('indicator_overrides').upsert({ indicator: ind, date: this._toDbDate(date), value: parseFloat(value), source }, { onConflict: 'indicator,date' });
+        if (error) throw error;
+        this._clearCache('indicators', ind);
     }
 
     async removeIndicatorOverride(indicator, date) {
         const ind = indicator.toUpperCase();
-        const dbDate = this._toDbDate(date);
-        try {
-            const { error } = await supabase
-                .from('indicator_overrides')
-                .delete()
-                .eq('indicator', ind)
-                .eq('date', dbDate);
-            if (error) throw error;
-            this._clearIndicatorCache(ind);
-        } catch (error) {
-            console.error('Error removing indicator override:', error);
-            throw error;
-        }
+        const { error } = await supabase.from('indicator_overrides').delete().eq('indicator', ind).eq('date', this._toDbDate(date));
+        if (error) throw error;
+        this._clearCache('indicators', ind);
     }
 
     async fetchIndicatorRateForMonth(indicator, month, year) {
-        const configs = await this.getIndicatorConfigs();
-        const config = configs[indicator.toUpperCase()];
-        if (!config) throw new Error('Indicator not supported or configured');
-
-        try {
-            const lastDay = new Date(year, month, 0).getDate();
-            const startDate = `01/${month}/${year}`;
-            const endDate = `${lastDay}/${month}/${year}`;
-            const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${config.seriesId}/dados?formato=json&dataInicial=${startDate}&dataFinal=${endDate}`;
-
-            const data = await this._robustFetch(url);
-            if (data && data.length > 0) return this._normalizeValue(data[0].valor);
-            return null;
-        } catch (error) {
-            console.error(`Error fetching ${indicator} for month:`, month, year, error);
-            throw error;
-        }
+        const config = (await this.getIndicatorConfigs())[indicator.toUpperCase()];
+        if (!config) throw new Error('Indicator not configured');
+        const lastDay = new Date(year, month, 0).getDate();
+        const data = await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${config.seriesId}/dados?formato=json&dataInicial=01/${month}/${year}&dataFinal=${lastDay}/${month}/${year}`);
+        return data?.length ? this._normalizeValue(data[0].valor) : null;
     }
 
     async syncDailyExchangeRates() {
         try {
             const today = new Date().toISOString().split('T')[0];
-            const lastSync = localStorage.getItem('last_exchange_sync');
-            if (lastSync === today) {
-                return { status: 'already_synced' };
-            }
-
-            const managed = await this.getManagedCurrencies();
-            const currencies = Object.keys(managed);
-
-            if (currencies.length === 0) return { status: 'no_currencies' };
-
-            const now = new Date();
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(now.getDate() - 30);
-
-            const pad = (n) => n.toString().padStart(2, '0');
-            const startDate = `${pad(thirtyDaysAgo.getDate())}/${pad(thirtyDaysAgo.getMonth() + 1)}/${thirtyDaysAgo.getFullYear()}`;
-            const endDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
-
-            let syncedCount = 0;
-            for (const currency of currencies) {
-                if (currency === 'BRL') continue;
-
+            if (sessionStorage.getItem('last_exchange_sync') === today) return { status: 'already_synced' };
+            const currencies = Object.keys(await this.getManagedCurrencies()).filter(c => c !== 'BRL');
+            if (!currencies.length) return { status: 'no_currencies' };
+            const now = new Date(), ago = new Date(); ago.setDate(now.getDate() - 30);
+            const [start, end] = [this._fmtDate(ago), this._fmtDate(now)];
+            let count = 0;
+            for (const c of currencies) {
                 try {
-                    const history = await this.fetchExchangeRatesForRange(startDate, endDate, currency);
-
-                    if (history && history.length > 0) {
-                        const updates = history.map(h => ({
-                            currency: currency.toUpperCase(),
-                            date: this._toDbDate(h.data || h.date),
-                            buyValue: parseFloat((h.valor || h.value)?.buy || 0),
-                            sellValue: parseFloat((h.valor || h.value)?.sell || 0),
-                            source: 'BCB'
-                        }));
-                        await supabase.from('exchange_overrides').upsert(updates, { onConflict: 'currency,date' });
-                        syncedCount++;
+                    const h = await this.fetchExchangeRatesForRange(start, end, c);
+                    if (h?.length) {
+                        await supabase.from('exchange_overrides').upsert(h.map(r => ({ currency: c.toUpperCase(), date: this._toDbDate(r.data || r.date), buyValue: parseFloat((r.valor || r.value)?.buy || 0), sellValue: parseFloat((r.valor || r.value)?.sell || 0), source: 'BCB' })), { onConflict: 'currency,date' });
+                        count++;
                     }
-                } catch (err) {
-                    console.warn(`Failed to sync rates for ${currency}:`, err);
-                }
+                } catch { }
             }
-
-            localStorage.setItem('last_exchange_sync', today);
-            this._clearExchangeCache();
-            return { status: 'success', currenciesSynced: syncedCount };
-        } catch (error) {
-            console.error('Error syncing daily exchange rates:', error);
-            throw error;
-        }
+            sessionStorage.setItem('last_exchange_sync', today);
+            this._clearCache('exchange');
+            return { status: 'success', currenciesSynced: count };
+        } catch (e) { throw e; }
     }
 }
 

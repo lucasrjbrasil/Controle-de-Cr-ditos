@@ -12,9 +12,16 @@ export default function CreditForm({ onClose, initialData = null }) {
     const { addCredit, updateCredit, credits } = useCredits();
     const { companies } = useCompanies();
     const { perdcomps } = usePerdcomp();
+    // Busca a empresa correspondente para preencher company_id e cnpj inicialmente
+    const initialCompany = initialData?.empresa
+        ? companies.find(c => c.name === initialData.empresa)
+        : null;
+
     const [formData, setFormData] = useState({
         empresa: initialData?.empresa || '',
-        tipoCredito: initialData?.tipoCredito || 'Saldo Negativo IRPJ',
+        company_id: initialData?.company_id || initialCompany?.id || null,
+        cnpj: initialData?.cnpj || initialCompany?.cnpj || null,
+        tipoCredito: initialData?.tipoCredito || 'Saldo Negativo de IRPJ',
         codigoReceita: initialData?.codigoReceita || '',
         periodoApuracao: initialData?.periodoApuracao || '',
         valorPrincipal: initialData?.valorPrincipal || '',
@@ -24,7 +31,19 @@ export default function CreditForm({ onClose, initialData = null }) {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+
+        // Se for o campo empresa, busca o company_id e cnpj da empresa selecionada
+        if (name === 'empresa') {
+            const selectedCompany = companies.find(c => c.name === value);
+            setFormData((prev) => ({
+                ...prev,
+                [name]: value,
+                company_id: selectedCompany?.id || null,
+                cnpj: selectedCompany?.cnpj || null,
+            }));
+        } else {
+            setFormData((prev) => ({ ...prev, [name]: value }));
+        }
         setError(null);
     };
 
@@ -124,9 +143,21 @@ export default function CreditForm({ onClose, initialData = null }) {
                             onChange={handleChange}
                             className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-irko-blue focus:outline-none transition-all"
                         >
-                            <option>Saldo Negativo IRPJ</option>
-                            <option>Saldo Negativo CSLL</option>
-                            <option>Pagamento a Maior</option>
+                            <option>Saldo Negativo de IRPJ</option>
+                            <option>Saldo Negativo de CSLL</option>
+                            <option>Pagamento Indevido ou a Maior</option>
+                            <option>Retenção na Fonte</option>
+                            <option>Crédito de Estimativa</option>
+                            <option>Crédito Previdenciário</option>
+                            <option>Crédito de PIS</option>
+                            <option>Crédito de COFINS</option>
+                            <option>Crédito de IPI</option>
+                            <option>Crédito de PIS/COFINS – Importação</option>
+                            <option>Crédito Presumido</option>
+                            <option>Crédito Acumulado</option>
+                            <option>Crédito Decorrente de Decisão Judicial</option>
+                            <option>Crédito de Ressarcimento</option>
+                            <option>Outros Créditos Administráveis pela RFB</option>
                         </select>
                     </div>
 

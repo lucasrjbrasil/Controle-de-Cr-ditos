@@ -1,14 +1,25 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { useNotification } from './NotificationContext';
 
 const ToastContext = createContext();
 
 export function ToastProvider({ children }) {
     const [toasts, setToasts] = useState([]);
+    const { addNotification, updateNotification } = useNotification();
 
     const addToast = useCallback((message, type = 'info', duration = 4000) => {
         const id = Date.now() + Math.random();
         setToasts(prev => [...prev, { id, message, type, duration }]);
+
+        // Automatically add to notification history
+        // Pass the same ID to notification context so we can update it later
+        addNotification({
+            id,
+            message,
+            type,
+            title: type === 'success' ? 'Sucesso' : type === 'error' ? 'Erro' : type === 'warning' ? 'Atenção' : 'Informação'
+        });
 
         if (duration > 0) {
             setTimeout(() => {
@@ -17,11 +28,51 @@ export function ToastProvider({ children }) {
         }
 
         return id;
-    }, []);
+    }, [addNotification]);
 
     const removeToast = useCallback((id) => {
         setToasts(prev => prev.filter(toast => toast.id !== id));
     }, []);
+
+    const updateToast = useCallback((id, updates) => {
+        // Determine new type to get correct title
+        const newType = updates.type || 'info'; // fallback, though usually we have access to old type in state, here we only know updates. 
+        // Actually, we don't know the OLD type here easily without looking at state, but we can guess if type IS updated.
+        // If type is updated, we should provide the new title.
+
+        let newTitle = updates.title;
+        if (!newTitle && updates.type) {
+            newTitle = updates.type === 'success' ? 'Sucesso' : updates.type === 'error' ? 'Erro' : updates.type === 'warning' ? 'Atenção' : 'Informação';
+        }
+
+        // Update notification history as well
+        updateNotification(id, {
+            message: updates.message,
+            type: updates.type,
+            title: newTitle
+        });
+
+        setToasts(prev => prev.map(toast => {
+            if (toast.id === id) {
+                // Determine new type to update notification history if type changes
+                const newType = updates.type || toast.type;
+                const newMessage = updates.message || toast.message;
+
+                // If duration is updated, we might need to handle timeout reset, 
+                // but for now simpler to just update content.
+                // Ideally, if type changes to success/error, we want auto-dismiss.
+
+                if (updates.duration) {
+                    setTimeout(() => {
+                        removeToast(id);
+                    }, updates.duration);
+                }
+
+                return { ...toast, ...updates };
+            }
+            return toast;
+        }));
+    }, [removeToast, updateNotification]);
 
     const success = useCallback((message, duration) => addToast(message, 'success', duration), [addToast]);
     const error = useCallback((message, duration) => addToast(message, 'error', duration), [addToast]);
@@ -29,7 +80,7 @@ export function ToastProvider({ children }) {
     const info = useCallback((message, duration) => addToast(message, 'info', duration), [addToast]);
 
     return (
-        <ToastContext.Provider value={{ addToast, removeToast, success, error, warning, info }}>
+        <ToastContext.Provider value={{ addToast, removeToast, updateToast, success, error, warning, info }}>
             {children}
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </ToastContext.Provider>

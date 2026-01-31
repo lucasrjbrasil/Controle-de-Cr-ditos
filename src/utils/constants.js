@@ -70,10 +70,7 @@ export const STORAGE_KEYS = {
     COLUMN_WIDTHS: 'irko-column-widths',
 };
 
-// API endpoints (if needed)
-export const API_ENDPOINTS = {
-    BCB_SELIC: 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados',
-};
+// API endpoints - BCB URLs are managed in bcbService.js
 
 // Validation limits
 export const VALIDATION_LIMITS = {

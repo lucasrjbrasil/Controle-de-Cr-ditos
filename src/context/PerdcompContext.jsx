@@ -10,6 +10,29 @@ export function PerdcompProvider({ children }) {
 
     useEffect(() => {
         fetchPerdcomps();
+
+        // Set up realtime subscription for automatic updates
+        const channel = supabase
+            .channel('perdcomps-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'perdcomps' },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        setPerdcomps(prev => [payload.new, ...prev]);
+                    } else if (payload.eventType === 'UPDATE') {
+                        setPerdcomps(prev => prev.map(p => p.id === payload.new.id ? payload.new : p));
+                    } else if (payload.eventType === 'DELETE') {
+                        setPerdcomps(prev => prev.filter(p => p.id !== payload.old.id));
+                    }
+                }
+            )
+            .subscribe();
+
+        // Cleanup subscription on unmount
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const fetchPerdcomps = async () => {
@@ -93,7 +116,7 @@ export function PerdcompProvider({ children }) {
     };
 
     return (
-        <PerdcompContext.Provider value={{ perdcomps, addPerdcomp, updatePerdcomp, removePerdcomp, getPerdcompsByCreditId }}>
+        <PerdcompContext.Provider value={{ perdcomps, addPerdcomp, updatePerdcomp, removePerdcomp, getPerdcompsByCreditId, refreshPerdcomps: fetchPerdcomps }}>
             {children}
         </PerdcompContext.Provider>
     );

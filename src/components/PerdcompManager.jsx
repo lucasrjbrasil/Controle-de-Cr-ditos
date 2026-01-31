@@ -1,17 +1,22 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2, FileText, AlertCircle, CheckCircle, Clock, Download } from 'lucide-react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Plus, Search, Filter, Pencil, Trash2, FileText, AlertCircle, CheckCircle, Clock, Download, Upload, RotateCcw } from 'lucide-react';
 import PerdcompForm from './PerdcompForm';
+import UploadPerdcompModal from './UploadPerdcompModal';
 import { usePerdcomp } from '../context/PerdcompContext';
 import { useColumnResize } from '../hooks/useColumnResize';
 import ResizableTh from './ui/ResizableTh';
 import { useCredits } from '../context/CreditsContext';
 import { formatCurrency } from '../utils/formatters';
 import { exportToExcel } from '../utils/exportUtils';
+import { useToast } from '../context/ToastContext';
 import Button from './ui/Button';
 import Input from './ui/Input';
 
 export default function PerdcompManager() {
     const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const toast = useToast();
     const { columnWidths, handleResize, getColumnWidth } = useColumnResize({
         creditId: 80,
         numero: 120,
@@ -32,8 +37,8 @@ export default function PerdcompManager() {
     const [searchTerm, setSearchTerm] = useState('');
     const [competencyDate, setCompetencyDate] = useState(''); // Empty by default (show all)
     const [filterType, setFilterType] = useState('apuracao'); // 'apuracao' | 'transmissao'
-    const { perdcomps, removePerdcomp } = usePerdcomp();
-    const { credits } = useCredits();
+    const { perdcomps, removePerdcomp, refreshPerdcomps } = usePerdcomp();
+    const { credits, refreshCredits } = useCredits();
 
     const handleEdit = (item) => {
         setEditingItem(item);
@@ -51,9 +56,30 @@ export default function PerdcompManager() {
         setEditingItem(null);
     };
 
-    const getCreditInfo = (creditId) => {
-        return credits.find(c => c.id == creditId) || { empresa: 'Desconhecido', codigoReceita: '---', tipoCredito: '---' };
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await Promise.all([refreshPerdcomps(), refreshCredits()]);
+            toast.success('Dados atualizados com sucesso!');
+        } catch (error) {
+            console.error('Erro ao atualizar dados:', error);
+            toast.error('Erro ao atualizar dados.');
+        } finally {
+            setIsRefreshing(false);
+        }
     };
+
+    // Create a Map for O(1) credit lookup instead of O(n) find
+    const creditMap = useMemo(() => {
+        const map = new Map();
+        credits.forEach(c => map.set(c.id, c));
+        return map;
+    }, [credits]);
+
+    // Memoized getCreditInfo using Map lookup
+    const getCreditInfo = useCallback((creditId) => {
+        return creditMap.get(creditId) || { empresa: 'Desconhecido', codigoReceita: '---', tipoCredito: '---' };
+    }, [creditMap]);
 
     // Filter Logic
     const filteredPerdcomps = useMemo(() => {
@@ -83,7 +109,7 @@ export default function PerdcompManager() {
                 credit.codigoReceita.toLowerCase().includes(lowerTerm)
             );
         });
-    }, [perdcomps, searchTerm, competencyDate, credits]);
+    }, [perdcomps, searchTerm, competencyDate, filterType, getCreditInfo]);
 
     const handleExport = () => {
         if (filteredPerdcomps.length === 0) return;
@@ -135,12 +161,29 @@ export default function PerdcompManager() {
 
                 <div className="flex gap-2">
                     <Button
+                        variant="secondary"
+                        onClick={handleRefresh}
+                        className="gap-2"
+                        disabled={isRefreshing}
+                        title="Atualizar dados"
+                    >
+                        <RotateCcw size={20} className={isRefreshing ? 'animate-spin' : ''} />
+                    </Button>
+                    <Button
                         variant="success"
                         onClick={handleExport}
                         className="gap-2"
                     >
                         <Download size={20} />
                         Exportar Excel
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setIsUploadOpen(true)}
+                        className="gap-2"
+                    >
+                        <Upload size={20} />
+                        Upload PERDCOMP
                     </Button>
                     <Button
                         onClick={() => setIsFormOpen(true)}
@@ -322,6 +365,15 @@ export default function PerdcompManager() {
                 <PerdcompForm
                     onClose={closeForm}
                     initialData={editingItem}
+                />
+            )}
+            {isUploadOpen && (
+                <UploadPerdcompModal
+                    onClose={() => setIsUploadOpen(false)}
+                    onSuccess={() => {
+                        refreshPerdcomps();
+                        refreshCredits();
+                    }}
                 />
             )}
         </div>
