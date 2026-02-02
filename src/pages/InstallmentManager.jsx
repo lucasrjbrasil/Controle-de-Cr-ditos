@@ -1,15 +1,15 @@
-import React, { useState, useMemo } from 'react';
+﻿import { useState, useMemo, Fragment } from 'react';
 import { Plus, Search, Pencil, Trash2, FileText, Download } from 'lucide-react';
-import InstallmentForm from './InstallmentForm';
+import InstallmentForm from '../features/installments/components/InstallmentForm';
 import { useInstallment } from '../context/InstallmentContext';
 import { useCompanies } from '../context/CompanyContext';
 import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
+import ResizableTh from '../components/ui/ResizableTh';
 import { formatCurrency } from '../utils/formatters';
 import { exportToExcel } from '../utils/exportUtils';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import InstallmentEvolutionTable from './InstallmentEvolutionTable';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
+import InstallmentEvolutionTable from '../features/installments/components/InstallmentEvolutionTable';
 
 export default function InstallmentManager() {
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -173,7 +173,7 @@ export default function InstallmentManager() {
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                                 {filteredInstallments.map((item) => (
-                                    <React.Fragment key={item.id}>
+                                    <Fragment key={item.id}>
                                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                             <td className="px-3 py-3 font-medium text-xs text-slate-800 dark:text-white whitespace-nowrap max-w-[150px] truncate" title={getCompanyName(item.empresaId)}>
                                                 {getCompanyName(item.empresaId)}
@@ -241,7 +241,7 @@ export default function InstallmentManager() {
                                                 </td>
                                             </tr>
                                         )}
-                                    </React.Fragment>
+                                    </Fragment>
                                 ))}
                             </tbody>
                         </table>
@@ -258,3 +258,5 @@ export default function InstallmentManager() {
         </div>
     );
 }
+
+

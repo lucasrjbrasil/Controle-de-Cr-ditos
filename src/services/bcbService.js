@@ -52,40 +52,144 @@ export const COMMON_CODES = [
 const DEFAULT_CURRENCIES = Object.fromEntries(COMMON_CODES.map(c => [c.symbol, { buy: c.buy, sell: c.sell }]));
 
 class BCBService {
-    _clearCache = (type, key) => key ? delete SESSION_CACHE[type][key.toUpperCase()] : SESSION_CACHE[type] = type === 'selic' ? { data: null, lastFetch: 0 } : {};
-    _normalizeValue = v => typeof v === 'string' ? v.replace(',', '.') : v;
-    _toDbDate = d => !d ? null : /^\d{4}-\d{2}-\d{2}$/.test(d.trim()) ? d.trim() : /^\d{2}\/\d{2}\/\d{4}$/.test(d.trim()) ? d.trim().split('/').reverse().join('-') : d.trim();
-    _fromDbDate = d => !d ? '' : /^\d{4}-\d{2}-\d{2}$/.test(d.trim()) ? d.trim().split('-').reverse().join('/') : d.trim();
-    _fmtDate = d => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-    _sortByDate = (arr, asc = true) => arr.sort((a, b) => { const p = s => { const [d, m, y] = s.split('/').map(Number); return new Date(y, m - 1, d); }; return asc ? p(a.data) - p(b.data) : p(b.data) - p(a.data); });
-    _mapRate = (r, isCurrency) => isCurrency ? { data: this._fromDbDate(r.date), valor: { buy: r.buyValue, sell: r.sellValue }, isOverridden: r.source === 'MANUAL', source: r.source } : { data: r.date || this._fromDbDate(r.date), valor: r.value, isOverridden: r.source === 'MANUAL', source: r.source };
-
-    async _robustFetch(url) {
-        const t = Date.now(), opts = { cache: 'no-store' };
-
-        // SECURITY: Try direct API call first (most secure)
-        try {
-            const r = await fetch(url, opts);
-            if (r.ok) return r.json();
-        } catch {
-            devLog('[BCBService] Direct API call failed, trying CORS proxies as fallback');
+    /**
+     * Clears internal memory cache.
+     * @param {string} type - Cache type ('selic', 'exchange', 'indicators')
+     * @param {string} [key] - Specific key to clear (e.g. currency symbol)
+     */
+    _clearCache = (type, key) => {
+        if (key) {
+            delete SESSION_CACHE[type][key.toUpperCase()];
+        } else {
+            SESSION_CACHE[type] = type === 'selic' ? { data: null, lastFetch: 0 } : {};
         }
+    }
 
-        // SECURITY WARNING: CORS proxies can intercept data - used only as fallback
-        // Consider setting up your own proxy or Supabase Edge Function for production
-        const corsProxies = [
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}&disableCache=${t}`,
-            `https://corsproxy.io/?${encodeURIComponent(url + `&_t=${t}`)}`
-        ];
+    /**
+     * Normalizes numeric string values (replaces comma with dot).
+     * @param {string|number} v 
+     * @returns {string|number}
+     */
+    _normalizeValue = v => typeof v === 'string' ? v.replace(',', '.') : v;
 
-        for (const proxyUrl of corsProxies) {
+    /**
+     * Converts various date formats to database format (YYYY-MM-DD).
+     * @param {string} d 
+     * @returns {string|null}
+     */
+    _toDbDate = d => {
+        if (!d) return null;
+        const trimmed = d.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) return trimmed.split('/').reverse().join('-');
+        return trimmed;
+    }
+
+    /**
+     * Converts database date (YYYY-MM-DD) to display format (DD/MM/YYYY).
+     * @param {string} d 
+     * @returns {string}
+     */
+    _fromDbDate = d => {
+        if (!d) return '';
+        const trimmed = d.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed.split('-').reverse().join('/');
+        return trimmed;
+    }
+
+    /**
+     * Formats a Date object to DD/MM/YYYY string.
+     * @param {Date} d 
+     * @returns {string}
+     */
+    _fmtDate = d => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+
+    /**
+     * Sorts an array of objects by their 'data' property (date string).
+     * @param {Array} arr 
+     * @param {boolean} [asc=true] 
+     * @returns {Array}
+     */
+    _sortByDate = (arr, asc = true) => {
+        return arr.sort((a, b) => {
+            const parse = s => {
+                const [d, m, y] = s.split('/').map(Number);
+                return new Date(y, m - 1, d);
+            };
+            return asc ? parse(a.data) - parse(b.data) : parse(b.data) - parse(a.data);
+        });
+    }
+
+    /**
+     * Maps raw database or API response to consistent rate object structure.
+     * @param {Object} r 
+     * @param {boolean} isCurrency 
+     * @returns {Object}
+     */
+    _mapRate = (r, isCurrency) => {
+        if (isCurrency) {
+            return {
+                data: this._fromDbDate(r.date),
+                valor: { buy: r.buyValue, sell: r.sellValue },
+                isOverridden: r.source === 'MANUAL',
+                source: r.source
+            };
+        }
+        return {
+            data: r.date || this._fromDbDate(r.date),
+            valor: r.value,
+            isOverridden: r.source === 'MANUAL',
+            source: r.source
+        };
+    }
+
+    /**
+     * Robust fetch with fallback to Edge Function proxy and timeout support.
+     * @param {string} url 
+     * @param {number} [timeout=10000] 
+     * @returns {Promise<any>}
+     */
+    async _robustFetch(url, timeout = 10000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        const opts = { cache: 'no-store', signal: controller.signal };
+
+        try {
+            // SECURITY: Try direct API call first (most secure)
             try {
-                const r = await fetch(proxyUrl, opts);
+                const r = await fetch(url, opts);
+                if (r.ok) return r.json();
+            } catch (e) {
+                if (e.name === 'AbortError') throw e; // Don't catch timeout yet
+                devLog('[BCBService] Direct API call failed, trying Secure Proxy as fallback');
+            }
+
+            // SECURITY UPGRADE: Use our own Supabase Edge Function as proxy
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY;
+                const edgeFunctionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-bcb?url=${encodeURIComponent(url)}`;
+
+                const r = await fetch(edgeFunctionUrl, {
+                    ...opts,
+                    headers: {
+                        ...opts.headers,
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
                 if (r.ok) {
-                    devLog('[BCBService] Using CORS proxy (consider using direct API or own proxy for production)');
+                    devLog('[BCBService] Using Secure Edge Function Proxy');
                     return r.json();
+                } else {
+                    devLog('[BCBService] Edge Function Proxy returned error:', r.status, await r.text());
                 }
-            } catch { }
+            } catch (e) {
+                if (e.name === 'AbortError') throw e;
+                devError('[BCBService] Edge Function Proxy failed:', e);
+            }
+        } finally {
+            clearTimeout(timeoutId);
         }
 
         throw new Error("Falha de conexão com o BCB.");
@@ -94,7 +198,11 @@ class BCBService {
     async _fetchOlinda(start, end, currency) {
         try {
             const res = await this._robustFetch(`https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(codigoMoeda='${currency.toUpperCase()}',dataInicial='${toOlinda(start)}',dataFinal='${toOlinda(end)}')?$top=1000&$format=json`);
-            return res?.value?.map(i => ({ data: this._fromDbDate(i.dataHoraCotacao.split(' ')[0]), valor: { buy: i.cotacaoCompra, sell: i.cotacaoVenda }, source: 'OLINDA' })) || [];
+            return res?.value?.map(i => ({
+                data: this._fromDbDate(i.dataHoraCotacao.split(' ')[0]),
+                valor: { buy: i.cotacaoCompra, sell: i.cotacaoVenda },
+                source: 'OLINDA'
+            })) || [];
         } catch { return []; }
     }
 
@@ -213,20 +321,48 @@ class BCBService {
     async fetchExchangeRatesForRange(start, end, currency) {
         const key = `${HIST_CACHE_PREFIX}${currency.toUpperCase()}_${start.replace(/\//g, '')}_${end.replace(/\//g, '')}`;
         const cached = sessionStorage.getItem(key);
-        if (cached) { const { timestamp, data } = JSON.parse(cached); if (Date.now() - timestamp < CACHE_DURATION) return data; }
+        if (cached) {
+            const { timestamp, data } = JSON.parse(cached);
+            if (Date.now() - timestamp < CACHE_DURATION) return data;
+        }
+
         let result = await this._fetchOlinda(start, end, currency);
+
         if (!result.length) {
             const ids = await this.getSeriesIds(currency);
             if (ids) {
-                const fetch1 = async id => { try { return (await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${id}/dados?formato=json&dataInicial=${start}&dataFinal=${end}`)).map(i => ({ data: this._fromDbDate(i.data), valor: this._normalizeValue(i.valor) })); } catch { return []; } };
+                const fetch1 = async id => {
+                    try {
+                        const response = await this._robustFetch(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${id}/dados?formato=json&dataInicial=${start}&dataFinal=${end}`);
+                        return response.map(i => ({
+                            data: this._fromDbDate(i.data),
+                            valor: this._normalizeValue(i.valor)
+                        }));
+                    } catch {
+                        return [];
+                    }
+                };
+
                 const [buy, sell] = await Promise.all([fetch1(ids.buy), fetch1(ids.sell)]);
                 const m = new Map();
+
                 buy.forEach(i => m.set(i.data, { date: i.data, buy: i.valor, sell: null }));
-                sell.forEach(i => { const e = m.get(i.data); e ? e.sell = i.valor : m.set(i.data, { date: i.data, buy: null, sell: i.valor }); });
-                result = [...m.values()].map(i => ({ data: i.date, valor: { buy: i.buy, sell: i.sell }, source: 'BCB_SGS' }));
+                sell.forEach(i => {
+                    const e = m.get(i.data);
+                    e ? e.sell = i.valor : m.set(i.data, { date: i.data, buy: null, sell: i.valor });
+                });
+
+                result = [...m.values()].map(i => ({
+                    data: i.date,
+                    valor: { buy: i.buy, sell: i.sell },
+                    source: 'BCB_SGS'
+                }));
             }
         }
-        if (result.length) sessionStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: result }));
+
+        if (result.length) {
+            sessionStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data: result }));
+        }
         return result;
     }
 
@@ -251,7 +387,7 @@ class BCBService {
         if (!currency || currency === 'BRL') return [];
         const curr = currency.toUpperCase();
         if (SESSION_CACHE.exchange[curr] && Date.now() - SESSION_CACHE.exchange[curr].lastFetch < CACHE_TTL) return SESSION_CACHE.exchange[curr].data;
-        const { data } = await supabase.from('exchange_overrides').select('*').eq('currency', curr).order('date', { ascending: false }).limit(100);
+        const { data } = await supabase.from('exchange_overrides').select('*').eq('currency', curr).order('date', { ascending: false });
         const result = (data || []).map(r => this._mapRate(r, true));
         SESSION_CACHE.exchange[curr] = { data: result, lastFetch: Date.now() };
         return result;
@@ -328,16 +464,20 @@ class BCBService {
             if (!currencies.length) return { status: 'no_currencies' };
             const now = new Date(), ago = new Date(); ago.setDate(now.getDate() - 30);
             const [start, end] = [this._fmtDate(ago), this._fmtDate(now)];
-            let count = 0;
-            for (const c of currencies) {
+
+            // Parallelize fetching
+            const results = await Promise.allSettled(currencies.map(async c => {
                 try {
                     const h = await this.fetchExchangeRatesForRange(start, end, c);
                     if (h?.length) {
                         await supabase.from('exchange_overrides').upsert(h.map(r => ({ currency: c.toUpperCase(), date: this._toDbDate(r.data || r.date), buyValue: parseFloat((r.valor || r.value)?.buy || 0), sellValue: parseFloat((r.valor || r.value)?.sell || 0), source: 'BCB' })), { onConflict: 'currency,date' });
-                        count++;
+                        return true;
                     }
-                } catch { }
-            }
+                } catch { return false; }
+            }));
+
+            const count = results.filter(r => r.status === 'fulfilled' && r.value).length;
+
             sessionStorage.setItem('last_exchange_sync', today);
             this._clearCache('exchange');
             return { status: 'success', currenciesSynced: count };

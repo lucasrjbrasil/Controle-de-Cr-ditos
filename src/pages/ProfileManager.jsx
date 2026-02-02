@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabase';
 import { User, Camera, Loader2, Save, LogOut } from 'lucide-react';
@@ -162,3 +162,5 @@ const ProfileManager = () => {
 };
 
 export default ProfileManager;
+
+

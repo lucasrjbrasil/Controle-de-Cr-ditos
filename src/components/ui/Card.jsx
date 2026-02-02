@@ -1,8 +1,7 @@
-
-import React from 'react';
+import { forwardRef } from 'react';
 import { cn } from '../../utils/cn';
 
-const Card = React.forwardRef(({ className, children, ...props }, ref) => {
+const Card = forwardRef(({ className, children, ...props }, ref) => {
     return (
         <div
             ref={ref}
@@ -18,7 +17,7 @@ const Card = React.forwardRef(({ className, children, ...props }, ref) => {
 });
 Card.displayName = 'Card';
 
-const CardHeader = React.forwardRef(({ className, children, ...props }, ref) => {
+const CardHeader = forwardRef(({ className, children, ...props }, ref) => {
     return (
         <div
             ref={ref}
@@ -31,7 +30,7 @@ const CardHeader = React.forwardRef(({ className, children, ...props }, ref) => 
 });
 CardHeader.displayName = 'CardHeader';
 
-const CardTitle = React.forwardRef(({ className, children, ...props }, ref) => {
+const CardTitle = forwardRef(({ className, children, ...props }, ref) => {
     return (
         <h3
             ref={ref}
@@ -47,7 +46,7 @@ const CardTitle = React.forwardRef(({ className, children, ...props }, ref) => {
 });
 CardTitle.displayName = 'CardTitle';
 
-const CardContent = React.forwardRef(({ className, children, ...props }, ref) => {
+const CardContent = forwardRef(({ className, children, ...props }, ref) => {
     return (
         <div ref={ref} className={cn('p-6 pt-0', className)} {...props}>
             {children}

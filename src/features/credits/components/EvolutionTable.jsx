@@ -1,18 +1,18 @@
-import React, { useMemo, useState } from 'react';
+﻿import { useMemo, useState, Fragment } from 'react';
 import { format, isSameMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { calculateEvolution } from '../utils/calculationEngine';
-import { useSelic } from '../hooks/useSelic';
-import { formatCurrency, formatCNPJ } from '../utils/formatters';
-import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
+import { calculateEvolution } from '../../../utils/calculationEngine';
+import { useSelic } from '../../../hooks/useSelic';
+import { formatCurrency, formatCNPJ } from '../../../utils/formatters';
+import { useColumnResize } from '../../../hooks/useColumnResize';
+import ResizableTh from '../../../components/ui/ResizableTh';
 import { Download, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
-import { useCredits } from '../context/CreditsContext';
-import { usePerdcomp } from '../context/PerdcompContext';
-import { useCompanies } from '../context/CompanyContext';
-import Button from './ui/Button';
+import { useCredits } from '../../../context/CreditsContext';
+import { usePerdcomp } from '../../../context/PerdcompContext';
+import { useCompanies } from '../../../context/CompanyContext';
+import Button from '../../../components/ui/Button';
 
-import { exportToExcel } from '../utils/exportUtils';
+import { exportToExcel } from '../../../utils/exportUtils';
 
 export default function EvolutionTable({ credit }) {
     const { rates } = useSelic();
@@ -233,7 +233,7 @@ export default function EvolutionTable({ credit }) {
                                 const isExpanded = expandedRows[row.id];
 
                                 return (
-                                    <React.Fragment key={row.id}>
+                                    <Fragment key={row.id}>
                                         <tr className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/50' : ''}`}>
                                             <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300 capitalize flex items-center gap-2">
                                                 {hasCompensations && (
@@ -337,7 +337,7 @@ export default function EvolutionTable({ credit }) {
                                                 </td>
                                             </tr>
                                         )}
-                                    </React.Fragment>
+                                    </Fragment>
                                 );
                             })}
                         </tbody>
@@ -375,3 +375,5 @@ export default function EvolutionTable({ credit }) {
         </div>
     );
 }
+
+

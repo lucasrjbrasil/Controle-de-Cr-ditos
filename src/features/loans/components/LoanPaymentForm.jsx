@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+﻿import { useState } from 'react';
 import { CreditCard, Save, AlertCircle } from 'lucide-react';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import Modal from './ui/Modal';
-import { useLoans } from '../context/LoanContext';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import Modal from '../../../components/ui/Modal';
+import { useLoans } from '../../../context/LoanContext';
 
 export default function LoanPaymentForm({ loanId, onClose, initialData = null }) {
     const { addPayment, updatePayment } = useLoans();
@@ -179,3 +179,5 @@ export default function LoanPaymentForm({ loanId, onClose, initialData = null })
         </Modal>
     );
 }
+
+

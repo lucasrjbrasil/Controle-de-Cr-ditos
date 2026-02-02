@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export default function ResizableTh({ children, width, onResize, className = '', minWidth = 50, ...props }) {
     const [isResizing, setIsResizing] = useState(false);

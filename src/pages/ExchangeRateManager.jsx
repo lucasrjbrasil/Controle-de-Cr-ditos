@@ -1,12 +1,14 @@
-import React, { useState, useMemo, useEffect } from 'react';
+﻿import { useState, useMemo, useEffect } from 'react';
 import { Search, History, Plus, Pencil, Trash2, X, Check, Globe, Settings, Trash, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useExchangeRates } from '../hooks/useExchangeRates';
 import { bcbService, COMMON_CODES } from '../services/bcbService';
 import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import Modal from './ui/Modal';
+import ResizableTh from '../components/ui/ResizableTh';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
+import Modal from '../components/ui/Modal';
+
+const ITEMS_PER_PAGE = 20;
 
 export default function ExchangeRateManager() {
     const [managedCurrencies, setManagedCurrencies] = useState({});
@@ -23,20 +25,24 @@ export default function ExchangeRateManager() {
     const [editingDate, setEditingDate] = useState(null);
     const [editValue, setEditValue] = useState({ buy: '', sell: '' });
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20;
 
+    // Load managed currencies on mount
     // Load managed currencies on mount
     useEffect(() => {
         async function load() {
             const currencies = await bcbService.getManagedCurrencies();
             setManagedCurrencies(currencies);
+
+            // Only set initial currency if we have no currency selected (unlikely due to default)
+            // or if we want to ensure valid initial state.
+            // But removing the aggressive auto-switch preserves user selection better.
             const keys = Object.keys(currencies);
-            if (keys.length > 0 && !currencies[currency]) {
+            if (keys.length > 0 && !currency) {
                 setCurrency(keys[0]);
             }
         }
         load();
-    }, [currency]);
+    }, []);
 
     const filteredRates = useMemo(() => {
         if (!rates || !Array.isArray(rates)) return [];
@@ -56,7 +62,16 @@ export default function ExchangeRateManager() {
                 return parseToDateValue(b.data) - parseToDateValue(a.data);
             });
 
-            return sorted.filter(r =>
+            // Deduplicate by date
+            const uniqueRatesMap = new Map();
+            sorted.forEach(r => {
+                if (r?.data && !uniqueRatesMap.has(r.data)) {
+                    uniqueRatesMap.set(r.data, r);
+                }
+            });
+            const uniqueRates = Array.from(uniqueRatesMap.values());
+
+            return uniqueRates.filter(r =>
                 (r?.data && r.data.includes(searchTerm)) ||
                 (r?.valor?.buy && r.valor.buy.toString().includes(searchTerm)) ||
                 (r?.valor?.sell && r.valor.sell.toString().includes(searchTerm))
@@ -67,10 +82,18 @@ export default function ExchangeRateManager() {
         }
     }, [rates, searchTerm]);
 
-    const totalPages = Math.ceil(filteredRates.length / itemsPerPage);
+    const totalPages = Math.ceil(filteredRates.length / ITEMS_PER_PAGE);
+
+    // Validate currentPage bounds
+    useEffect(() => {
+        if (totalPages > 0 && currentPage > totalPages) {
+            setCurrentPage(1);
+        }
+    }, [totalPages, currentPage]);
+
     const paginatedRates = useMemo(() => {
-        const start = (currentPage - 1) * itemsPerPage;
-        return filteredRates.slice(start, start + itemsPerPage);
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredRates.slice(start, start + ITEMS_PER_PAGE);
     }, [filteredRates, currentPage]);
 
     // Reset to page 1 when search or currency changes
@@ -719,9 +742,17 @@ export default function ExchangeRateManager() {
                                 <ResizableTh width={getColumnWidth('actions')} onResize={(w) => handleResize('actions', w)} className="px-6 py-4 text-right">Ações</ResizableTh>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        <tbody key={currentPage} className="divide-y divide-slate-100 dark:divide-slate-800">
                             {loading ? (
                                 <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">Carregando taxas...</td></tr>
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-8 text-center text-red-500 flex flex-col items-center gap-2">
+                                        <span className="font-bold">Erro ao carregar taxas</span>
+                                        <span className="text-sm text-slate-500">{error}</span>
+                                        <Button onClick={() => window.location.reload()} variant="ghost" size="sm" className="mt-2 text-blue-600">Tentar Novamente</Button>
+                                    </td>
+                                </tr>
                             ) : paginatedRates.length === 0 ? (
                                 <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">Nenhuma taxa encontrada.</td></tr>
                             ) : (
@@ -797,7 +828,7 @@ export default function ExchangeRateManager() {
                 {totalPages > 1 && (
                     <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
                         <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                            Mostrando {Math.min(filteredRates.length, (currentPage - 1) * itemsPerPage + 1)} a {Math.min(filteredRates.length, currentPage * itemsPerPage)} de {filteredRates.length} taxas
+                            Mostrando {Math.min(filteredRates.length, (currentPage - 1) * ITEMS_PER_PAGE + 1)} a {Math.min(filteredRates.length, currentPage * ITEMS_PER_PAGE)} de {filteredRates.length} taxas
                         </div>
                         <div className="flex items-center gap-2">
                             <Button
@@ -849,3 +880,5 @@ export default function ExchangeRateManager() {
         </div>
     );
 }
+
+

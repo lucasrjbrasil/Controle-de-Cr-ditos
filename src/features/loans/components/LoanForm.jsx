@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { Landmark, AlertCircle, Info, Save } from 'lucide-react';
-import { useLoans } from '../context/LoanContext';
-import { useCompanies } from '../context/CompanyContext';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import Modal from './ui/Modal';
-import { formatCNPJ, formatNumber } from '../utils/formatters';
+import { useLoans } from '../../../context/LoanContext';
+import { useCompanies } from '../../../context/CompanyContext';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import Modal from '../../../components/ui/Modal';
+import { formatCNPJ, formatNumber } from '../../../utils/formatters';
 
 const LabelWithTooltip = ({ label, tooltip }) => (
     <div className="flex items-center gap-2 group relative w-fit">
@@ -353,3 +353,5 @@ export default function LoanForm({ onClose, initialData = null }) {
         </Modal>
     );
 }
+
+

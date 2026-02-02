@@ -1,14 +1,28 @@
 import { createClient } from '@supabase/supabase-js'
 
+/**
+ * @type {string|undefined}
+ */
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+
+/**
+ * @type {string|undefined}
+ */
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+/**
+ * Supabase client instance.
+ * @type {import('@supabase/supabase-js').SupabaseClient}
+ */
 let supabaseInstance;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Supabase URL or Anon Key is missing. Please check your .env file and environment variables.')
+
   // Provide a dummy object that will fail gracefully instead of crashing the whole app import
-  supabaseInstance = {
+  // This allows the app to start even if misconfigured, simplifying debugging
+  /** @type {any} */
+  const dummyClient = {
     auth: {
       getSession: async () => ({ data: { session: null }, error: new Error('Supabase not configured') }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } }),
@@ -21,8 +35,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
       insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }),
       update: () => ({ eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }) }),
       delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
+      upsert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }),
     })
   };
+  supabaseInstance = dummyClient;
 } else {
   supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
 }

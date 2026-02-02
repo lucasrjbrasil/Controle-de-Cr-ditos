@@ -7,9 +7,11 @@ export const cnpjService = {
     /**
      * Fetches company data by CNPJ
      * @param {string} cnpj - The CNPJ to search for (numbers only or formatted)
+     * @param {number} [timeout=10000] - Request timeout in milliseconds (default: 10s)
      * @returns {Promise<Object>} - The company data
+     * @throws {Error} If CNPJ is invalid, not found, or request fails
      */
-    async fetchByCnpj(cnpj) {
+    async fetchByCnpj(cnpj, timeout = 10000) {
         // Remove non-numeric characters
         const cleanCnpj = cnpj.replace(/\D/g, '');
 
@@ -17,8 +19,13 @@ export const cnpjService = {
             throw new Error('CNPJ deve ter 14 dígitos.');
         }
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
         try {
-            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`, {
+                signal: controller.signal
+            });
 
             if (!response.ok) {
                 if (response.status === 404) {
@@ -33,8 +40,13 @@ export const cnpjService = {
             const data = await response.json();
             return data;
         } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('A consulta demorou muito para responder. Tente novamente.');
+            }
             console.error('Erro na consulta de CNPJ:', error);
             throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 };

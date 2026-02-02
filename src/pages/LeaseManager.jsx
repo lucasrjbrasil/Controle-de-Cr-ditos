@@ -1,4 +1,4 @@
-import React from 'react';
+﻿
 import { FileKey, Construction } from 'lucide-react';
 
 export default function LeaseManager() {
@@ -43,3 +43,5 @@ export default function LeaseManager() {
         </div>
     );
 }
+
+

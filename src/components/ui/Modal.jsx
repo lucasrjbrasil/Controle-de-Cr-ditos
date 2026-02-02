@@ -1,6 +1,18 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+
+const maxWidthClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
+    '5xl': 'max-w-5xl',
+    full: 'max-w-full lg:mx-8',
+};
 
 /**
  * Reusable Modal component that handles:
@@ -29,19 +41,6 @@ export default function Modal({
     }, [onClose]);
 
     if (!isOpen) return null;
-
-    // Map maxWidth prop to tailwind classes
-    const maxWidthClasses = {
-        sm: 'max-w-sm',
-        md: 'max-w-md',
-        lg: 'max-w-lg',
-        xl: 'max-w-xl',
-        '2xl': 'max-w-2xl',
-        '3xl': 'max-w-3xl',
-        '4xl': 'max-w-4xl',
-        '5xl': 'max-w-5xl',
-        full: 'max-w-full lg:mx-8',
-    };
 
     const widthClass = maxWidthClasses[maxWidth] || maxWidthClasses['2xl'];
 

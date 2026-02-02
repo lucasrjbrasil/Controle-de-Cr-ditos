@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Save, HelpCircle } from 'lucide-react';
-import { useToast } from '../context/ToastContext';
-import { useCredits } from '../context/CreditsContext';
-import { usePerdcomp } from '../context/PerdcompContext';
-import { formatCurrency, parseCurrency } from '../utils/formatters';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import Modal from './ui/Modal';
+import { useToast } from '../../../context/ToastContext';
+import { useCredits } from '../../../context/CreditsContext';
+import { usePerdcomp } from '../../../context/PerdcompContext';
+import { formatCurrency, parseCurrency } from '../../../utils/formatters';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import Modal from '../../../components/ui/Modal';
 
 export default function PerdcompForm({ onClose, initialData }) {
     const { credits } = useCredits();
@@ -322,3 +322,5 @@ export default function PerdcompForm({ onClose, initialData }) {
         </Modal>
     );
 }
+
+

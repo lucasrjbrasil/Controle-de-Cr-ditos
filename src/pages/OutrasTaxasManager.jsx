@@ -1,12 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+﻿import { useState, useMemo, useEffect } from 'react';
 import { Search, History, Plus, Pencil, Trash2, X, Check, ChevronLeft, ChevronRight, Percent, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { useOtherRates } from '../hooks/useOtherRates';
 import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
-import Button from './ui/Button';
-import Input from './ui/Input';
+import ResizableTh from '../components/ui/ResizableTh';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
 import { useToast } from '../context/ToastContext';
-import Modal from './ui/Modal';
+import Modal from '../components/ui/Modal';
 
 export default function OutrasTaxasManager() {
     const [selectedIndicator, setSelectedIndicator] = useState('IPCA');
@@ -671,3 +671,5 @@ export default function OutrasTaxasManager() {
         </div>
     );
 }
+
+

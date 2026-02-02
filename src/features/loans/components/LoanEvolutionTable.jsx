@@ -1,13 +1,13 @@
-import React, { useMemo, useState } from 'react';
+﻿import { useMemo, useState, Fragment } from 'react';
 import { format } from 'date-fns';
-import { useExchangeRates } from '../hooks/useExchangeRates';
-import { calculateLoanEvolution } from '../utils/loanCalculator';
-import { formatCurrencyByCode, formatCurrency } from '../utils/formatters';
-import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
+import { useExchangeRates } from '../../../hooks/useExchangeRates';
+import { calculateLoanEvolution } from '../../../utils/loanCalculator';
+import { formatCurrencyByCode, formatCurrency } from '../../../utils/formatters';
+import { useColumnResize } from '../../../hooks/useColumnResize';
+import ResizableTh from '../../../components/ui/ResizableTh';
 import { TrendingUp, TrendingDown, Minus, ChevronRight, ChevronDown, Download } from 'lucide-react';
-import { exportToExcel } from '../utils/exportUtils';
-import { useCompanies } from '../context/CompanyContext';
+import { exportToExcel } from '../../../utils/exportUtils';
+import { useCompanies } from '../../../context/CompanyContext';
 
 export default function LoanEvolutionTable({ loan }) {
     const [expandedMonths, setExpandedMonths] = useState({});
@@ -133,7 +133,7 @@ export default function LoanEvolutionTable({ loan }) {
                             const totalVariation = row.variationPrincipal + row.variationInterest;
 
                             return (
-                                <React.Fragment key={index}>
+                                <Fragment key={index}>
                                     <tr
                                         className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors cursor-pointer group"
                                         onClick={() => toggleMonth(row.monthLabel)}
@@ -236,7 +236,7 @@ export default function LoanEvolutionTable({ loan }) {
                                             </td>
                                         </tr>
                                     )}
-                                </React.Fragment>
+                                </Fragment>
                             );
                         })}
                     </tbody>
@@ -250,3 +250,5 @@ export default function LoanEvolutionTable({ loan }) {
         </div>
     );
 }
+
+

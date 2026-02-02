@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+﻿import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabase';
 import { Loader2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
@@ -307,3 +307,5 @@ const Login = ({ onRegisterClick }) => {
 };
 
 export default Login;
+
+

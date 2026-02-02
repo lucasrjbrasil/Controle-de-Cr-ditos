@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+﻿import { useState } from 'react';
 import { Plus, Search, Pencil, Trash2, Building2, MapPin, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 import { useCompanies } from '../context/CompanyContext';
 import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import Modal from './ui/Modal';
+import ResizableTh from '../components/ui/ResizableTh';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
+import Modal from '../components/ui/Modal';
 import { cnpjService } from '../services/cnpjService';
 import { useToast } from '../context/ToastContext';
 import { formatCNPJ } from '../utils/formatters';
@@ -497,3 +497,5 @@ function CompanyForm({ onClose, initialData, onSubmit }) {
         </Modal>
     );
 }
+
+

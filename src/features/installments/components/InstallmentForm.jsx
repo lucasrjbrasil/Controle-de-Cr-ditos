@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import { useInstallment } from '../context/InstallmentContext';
-import { useCompanies } from '../context/CompanyContext';
-import { formatCurrency, parseCurrency } from '../utils/formatters';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import { useInstallment } from '../../../context/InstallmentContext';
+import { useCompanies } from '../../../context/CompanyContext';
+import { formatCurrency, parseCurrency } from '../../../utils/formatters';
 
 export default function InstallmentForm({ onClose, initialData = null }) {
     const { addInstallment, updateInstallment } = useInstallment();
@@ -315,3 +315,5 @@ export default function InstallmentForm({ onClose, initialData = null }) {
         </div>
     );
 }
+
+

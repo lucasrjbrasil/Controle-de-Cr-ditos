@@ -17,7 +17,11 @@ export function useExchangeRates(currency, startDate = null, endDate = null) {
 
         async function load() {
             try {
+                // Clear rates immediately to prevent stale data
+                setRates([]);
                 setLoading(true);
+                setError(null);
+
                 let data;
                 if (startDate && endDate) {
                     data = await bcbService.fetchExchangeRatesWithHistory(currency, startDate, endDate);

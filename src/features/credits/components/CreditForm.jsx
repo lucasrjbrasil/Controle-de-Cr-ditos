@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+﻿import { useState } from 'react';
 import { Plus, Save, AlertCircle } from 'lucide-react';
-import { useCredits } from '../context/CreditsContext';
-import { useCompanies } from '../context/CompanyContext';
-import { usePerdcomp } from '../context/PerdcompContext';
-import Button from './ui/Button';
-import Input from './ui/Input';
-import Modal from './ui/Modal';
-import { formatCNPJ } from '../utils/formatters';
+import { useCredits } from '../../../context/CreditsContext';
+import { useCompanies } from '../../../context/CompanyContext';
+import { usePerdcomp } from '../../../context/PerdcompContext';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import Modal from '../../../components/ui/Modal';
+import { formatCNPJ } from '../../../utils/formatters';
 
 export default function CreditForm({ onClose, initialData = null }) {
     const { addCredit, updateCredit, credits } = useCredits();
@@ -240,3 +240,5 @@ export default function CreditForm({ onClose, initialData = null }) {
         </Modal>
     );
 }
+
+

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿
 import {
     Building2,
     FileText,
@@ -12,7 +12,7 @@ import {
     FileKey,
     Percent
 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 
 export default function Home({ setActiveTab }) {
     const modules = [
@@ -171,3 +171,5 @@ export default function Home({ setActiveTab }) {
         </div>
     );
 };
+
+

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
 import logo from '../assets/logo.png';
@@ -263,3 +263,5 @@ const Register = ({ onLoginClick }) => {
 };
 
 export default Register;
+
+

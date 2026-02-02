@@ -1,226 +1,70 @@
 # Guia de Contribuição
 
-Obrigado por contribuir com o projeto Controle de Créditos IRKO! Este documento fornece diretrizes para manter a qualidade e consistência do código.
+Obrigado por ajudar a melhorar o Controle de Créditos! Focamos em qualidade e simplicidade.
 
-## 📋 Padrões de Código
+## 🚀 Como Contribuir
 
-### Estrutura de Arquivos
+1.  **Crie uma Branch**: Sempre a partir de `develop`.
+    - `feat/nova-funcionalidade`
+    - `fix/correcao-bug`
+2.  **Desenvolva**: Faça commits pequenos e descritivos.
+3.  **Abra um PR**: Descreva o "Porquê" e o "Como".
+4.  **Code Review**: Aguarde a aprovação antes do merge.
 
-- **Componentes**: Use PascalCase para nomes de arquivos (ex: `CreditForm.jsx`)
-- **Hooks**: Use camelCase com prefixo `use` (ex: `useSelic.js`)
-- **Utilitários**: Use camelCase (ex: `formatters.js`)
-- **Constantes**: Use camelCase (ex: `constants.js`)
+---
 
-### Convenções de Nomenclatura
+## 📋 Padrões de Código (Cheatsheet)
 
-#### JavaScript/React
+| Categoria | ✅ Faça (Do) | ❌ Não Faça (Don't) |
+|-----------|----------------|---------------------|
+| **Nomes** | `CreditForm`, `calculateTotal`, `useSelic` | `form1`, `calc`, `hook` |
+| **Componentes** | Pequenos (<200 linhas), Funcionais | Classes, Monolitos gigantes |
+| **Estilos** | Tailwind (`className="p-4"`) | CSS Inline (`style={{padding: 20}}`) |
+| **Async** | `try/catch` com `toast.error()` | `.then().catch()` ou `alert()` |
+| **Comentários** | Explique o *Porquê* (regra de negócia) | Explique o *O que* (óbvio no código) |
+
+### Exemplo de Componente Ideal
+
 ```javascript
-// Componentes: PascalCase
-function CreditForm() { }
-
-// Hooks: camelCase com prefixo 'use'
-function useDebounce() { }
-
-// Funções: camelCase
-function calculateTotal() { }
-
-// Constantes: UPPER_SNAKE_CASE
-const API_ENDPOINT = 'https://api.example.com';
-
-// Variáveis: camelCase
-const userName = 'João';
-```
-
-#### CSS/Tailwind
-- Use classes utilitárias do Tailwind sempre que possível
-- Para estilos customizados, use a camada `@layer` apropriada
-- Prefira dark mode com `dark:` ao invés de media queries
-
-### Componentes React
-
-#### Estrutura Padrão
-```javascript
-import React, { useState } from 'react';
-import { Icon } from 'lucide-react';
-import { useToast } from '../context/ToastContext';
-import Button from './ui/Button';
-
 /**
- * Descrição do componente
- * @param {Object} props - Props do componente
+ * Exibe saldo atualizado.
+ * Regra: Saldo negativo deve ser vermelho.
  */
-export default function MyComponent({ prop1, prop2 }) {
-    const toast = useToast();
-    const [state, setState] = useState(initialValue);
-
-    const handleAction = () => {
-        // Lógica
-    };
+export default function BalanceDisplay({ value }) {
+    const { theme } = useTheme();
+    
+    // Formatação centralizada
+    const formatted = formatCurrency(value);
+    const isNegative = value < 0;
 
     return (
-        <div className="container">
-            {/* JSX */}
+        <div className={`p-4 ${isNegative ? 'text-red-500' : 'text-green-500'}`}>
+            {formatted}
         </div>
     );
 }
 ```
 
-#### Boas Práticas
-- ✅ Use hooks customizados para lógica reutilizável
-- ✅ Extraia componentes quando houver mais de 200 linhas
-- ✅ Use `React.memo` para componentes que renderizam listas
-- ✅ Prefira composição ao invés de herança
-- ✅ Use PropTypes ou TypeScript para validação de props
+---
 
-### Tratamento de Erros
+## 🛡️ Segurança & Qualidade
 
-#### Notificações
-Use o hook `useToast` ao invés de `alert()`:
+Antes de enviar seu PR, verifique:
 
-```javascript
-const toast = useToast();
+- [ ] **Sanitização**: Inputs de usuário usam `sanitize()`?
+- [ ] **Feedback**: Usuário recebe `toast` de sucesso/erro?
+- [ ] **Logs**: Removeu todos os `console.log` de debug?
+- [ ] **Responsivo**: Testou em Mobile e Desktop?
+- [ ] **Dark Mode**: Testou com o tema escuro ativado?
 
-// Sucesso
-toast.success('Operação concluída com sucesso!');
-
-// Erro
-toast.error('Erro ao processar solicitação');
-
-// Aviso
-toast.warning('Preencha todos os campos');
-
-// Informação
-toast.info('Dados atualizados');
-```
-
-#### Try-Catch
-```javascript
-try {
-    await someAsyncOperation();
-    toast.success('Sucesso!');
-} catch (error) {
-    toast.error(`Erro: ${error.message}`);
-    console.error('Detalhes do erro:', error);
-}
-```
-
-### Validação de Formulários
-
-Use as funções de validação e segurança centralizadas:
-
-```javascript
-import { 
-    validateForm, 
-    validatePasswordStrength, 
-    sanitize, 
-    isValidCNPJ 
-} from '../utils/validationUtils';
-
-// Validação de formulário
-const rules = {
-    email: { required: true, email: true },
-    password: { required: true, minLength: 8 },
-    cnpj: { required: true, cnpj: true }
-};
-const errors = validateForm(formData, rules);
-
-// Validação de força de senha
-const { isValid, strength, errors } = validatePasswordStrength(password);
-
-// Sanitização contra XSS
-const safeInput = sanitize(userInput);
-
-// Validação de CNPJ
-if (!isValidCNPJ(cnpj)) {
-    toast.error('CNPJ inválido');
-}
-```
-
-### Formatação
-
-#### Datas
-```javascript
-import { format } from 'date-fns';
-
-const formatted = format(new Date(), 'dd/MM/yyyy');
-```
-
-#### Moeda
-```javascript
-import { formatCurrency } from '../utils/formatters';
-
-const value = formatCurrency(1234.56); // R$ 1.234,56
-```
-
-## 🔄 Workflow de Git
-
-### Branches
-- `main` - Produção
-- `develop` - Desenvolvimento
-- `feature/nome-da-feature` - Novas funcionalidades
-- `fix/nome-do-bug` - Correções
-
-### Commits
-
-Use mensagens descritivas em português:
-
-```
-feat: adiciona validação de formulário de créditos
-fix: corrige cálculo de juros compostos
-docs: atualiza README com instruções de deploy
-style: ajusta espaçamento no componente Header
-refactor: extrai lógica de cálculo para utilitário
-test: adiciona testes para LoanCalculator
-```
-
-Prefixos:
-- `feat:` - Nova funcionalidade
-- `fix:` - Correção de bug
-- `docs:` - Documentação
-- `style:` - Formatação (sem mudança de lógica)
-- `refactor:` - Refatoração de código
-- `test:` - Testes
-- `chore:` - Tarefas de manutenção
-
-### Pull Requests
-
-1. Crie uma branch a partir de `develop`
-2. Faça suas alterações
-3. Teste localmente
-4. Crie um PR para `develop`
-5. Aguarde revisão
-
-## ✅ Checklist Antes de Commit
-
-- [ ] Código está formatado corretamente
-- [ ] Sem `console.log` no código (use `devLog` se necessário)
-- [ ] Sem `alert()` - use `toast`
-- [ ] Inputs sanitizados com `sanitize()`
-- [ ] Validações usam `validationUtils`
-- [ ] Senhas validadas com `validatePasswordStrength()`
-- [ ] CNPJs validados com `isValidCNPJ()`
-- [ ] Estilos seguem o design system
-- [ ] Testado em modo claro e escuro
-- [ ] Sem erros no console do navegador
-- [ ] Build funciona (`npm run build`)
-
-## 🧪 Testes
+## 🧪 Comandos de Teste
 
 ```bash
-# Executar testes
-npm test
-
-# Executar com coverage
-npm test -- --coverage
+npm run lint   # Verificar estilo
+npm test       # Rodar testes unitários
+npm run build  # Verificar se o build passa
 ```
 
-## 📚 Recursos
+---
 
-- [React Documentation](https://react.dev/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [Supabase Docs](https://supabase.com/docs)
-- [Lucide Icons](https://lucide.dev/)
-
-## 💬 Dúvidas?
-
-Entre em contato com a equipe de desenvolvimento da IRKO.
+Dúvidas? Chame a equipe no Slack/Discord. Bom código! 🚀

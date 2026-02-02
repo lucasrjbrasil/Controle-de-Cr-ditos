@@ -1,15 +1,15 @@
-import React, { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { calculateInstallmentEvolution } from '../utils/calculationEngine';
-import { useSelic } from '../hooks/useSelic';
-import { formatCurrency, formatCNPJ } from '../utils/formatters';
-import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
+import { calculateInstallmentEvolution } from '../../../utils/calculationEngine';
+import { useSelic } from '../../../hooks/useSelic';
+import { formatCurrency, formatCNPJ } from '../../../utils/formatters';
+import { useColumnResize } from '../../../hooks/useColumnResize';
+import ResizableTh from '../../../components/ui/ResizableTh';
 import { Download, ChevronLeft, ChevronRight } from 'lucide-react';
-import Button from './ui/Button';
-import { exportToExcel } from '../utils/exportUtils';
-import { useCompanies } from '../context/CompanyContext';
+import Button from '../../../components/ui/Button';
+import { exportToExcel } from '../../../utils/exportUtils';
+import { useCompanies } from '../../../context/CompanyContext';
 
 export default function InstallmentEvolutionTable({ installment }) {
     const { rates } = useSelic();
@@ -181,3 +181,5 @@ export default function InstallmentEvolutionTable({ installment }) {
         </div>
     );
 }
+
+

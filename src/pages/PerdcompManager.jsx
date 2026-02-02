@@ -1,16 +1,16 @@
-import React, { useState, useMemo, useCallback } from 'react';
+﻿import { useState, useMemo, useCallback } from 'react';
 import { Plus, Search, Filter, Pencil, Trash2, FileText, AlertCircle, CheckCircle, Clock, Download, Upload, RotateCcw } from 'lucide-react';
-import PerdcompForm from './PerdcompForm';
-import UploadPerdcompModal from './UploadPerdcompModal';
+import PerdcompForm from '../features/perdcomp/components/PerdcompForm';
+import UploadPerdcompModal from '../features/perdcomp/components/UploadPerdcompModal';
 import { usePerdcomp } from '../context/PerdcompContext';
 import { useColumnResize } from '../hooks/useColumnResize';
-import ResizableTh from './ui/ResizableTh';
+import ResizableTh from '../components/ui/ResizableTh';
 import { useCredits } from '../context/CreditsContext';
 import { formatCurrency } from '../utils/formatters';
 import { exportToExcel } from '../utils/exportUtils';
 import { useToast } from '../context/ToastContext';
-import Button from './ui/Button';
-import Input from './ui/Input';
+import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
 
 export default function PerdcompManager() {
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -302,7 +302,7 @@ export default function PerdcompManager() {
                                                 {credit.tipoCredito || '-'}
                                             </td>
                                             <td className="px-3 py-3 text-slate-600 dark:text-slate-300 text-[10px] whitespace-nowrap">
-                                                {credit.codigoReceita || '-'}
+                                                {item.codigoImposto || '-'}
                                             </td>
                                             <td className="px-3 py-3 text-slate-600 dark:text-slate-300 text-[10px] whitespace-nowrap">
                                                 {item.periodoApuracao || '-'}
@@ -379,3 +379,5 @@ export default function PerdcompManager() {
         </div>
     );
 }
+
+

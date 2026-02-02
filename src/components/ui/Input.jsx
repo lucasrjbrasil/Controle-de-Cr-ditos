@@ -1,8 +1,7 @@
-
-import React from 'react';
+import { forwardRef } from 'react';
 import { cn } from '../../utils/cn';
 
-const Input = React.forwardRef(({ className, type, icon: Icon, ...props }, ref) => {
+const Input = forwardRef(({ className, type, icon: Icon, ...props }, ref) => {
     return (
         <div className="relative w-full">
             {Icon && (

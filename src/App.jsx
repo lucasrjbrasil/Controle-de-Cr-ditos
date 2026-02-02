@@ -1,33 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { CreditsProvider } from './context/CreditsContext';
 import Sidebar from './components/Sidebar';
 import { Sun, Moon, LogOut } from 'lucide-react';
 import { useSelic } from './hooks/useSelic';
-import CreditsManager from './components/CreditsManager';
-import SelicManager from './components/SelicManager';
-import PerdcompManager from './components/PerdcompManager';
 import { PerdcompProvider } from './context/PerdcompContext';
 import { CompanyProvider } from './context/CompanyContext';
-import CompanyManager from './components/CompanyManager';
 import { LoanProvider } from './context/LoanContext';
 import { InstallmentProvider } from './context/InstallmentContext';
-import LoanManager from './components/LoanManager';
-import ExchangeRateManager from './components/ExchangeRateManager';
 import ErrorBoundary from './components/ErrorBoundary';
-import Home from './components/Home';
-import OutrasTaxasManager from './components/OutrasTaxasManager';
-import Login from './components/Login';
-import Register from './components/Register';
-import ProfileManager from './components/ProfileManager';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Notifications from './components/Notifications';
 import { NotificationProvider } from './context/NotificationContext';
-import InstallmentManager from './components/InstallmentManager';
-import LeaseManager from './components/LeaseManager';
 import { bcbService } from './services/bcbService';
 import { useToast } from './context/ToastContext';
+import { ToastProvider } from './context/ToastContext';
 
+// Lazy load pages for code splitting
+const CreditsManager = React.lazy(() => import('./pages/CreditsManager'));
+const SelicManager = React.lazy(() => import('./pages/SelicManager'));
+const PerdcompManager = React.lazy(() => import('./pages/PerdcompManager'));
+const CompanyManager = React.lazy(() => import('./pages/CompanyManager'));
+const LoanManager = React.lazy(() => import('./pages/LoanManager'));
+const ExchangeRateManager = React.lazy(() => import('./pages/ExchangeRateManager'));
+const Home = React.lazy(() => import('./pages/Home'));
+const OutrasTaxasManager = React.lazy(() => import('./pages/OutrasTaxasManager'));
+const Login = React.lazy(() => import('./pages/Login'));
+const Register = React.lazy(() => import('./pages/Register'));
+const ProfileManager = React.lazy(() => import('./pages/ProfileManager'));
+const InstallmentManager = React.lazy(() => import('./pages/InstallmentManager'));
+const LeaseManager = React.lazy(() => import('./pages/LeaseManager'));
 
 function Dashboard() {
   const [activeTab, setActiveTab] = useState('home');
@@ -35,41 +37,53 @@ function Dashboard() {
   const { isConnected, lastUpdated, loading } = useSelic();
   const { logout, user } = useAuth();
 
+  const LoadingSpinner = () => (
+    <div className="flex h-full items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-irko-blue"></div>
+    </div>
+  );
+
   const renderContent = () => {
-    switch (activeTab) {
-      case 'home':
-        return <Home setActiveTab={setActiveTab} />;
-      case 'credits':
-        return <CreditsManager />;
-      case 'selic':
-        return <SelicManager />;
-      case 'perdcomps':
-        return <PerdcompManager />;
-      case 'companies':
-        return <CompanyManager />;
-      case 'loans':
-        return (
-          <ErrorBoundary>
-            <LoanManager />
-          </ErrorBoundary>
-        );
-      case 'installments':
-        return <InstallmentManager />;
-      case 'leases':
-        return <LeaseManager />;
-      case 'exchange':
-        return <ExchangeRateManager />;
-      case 'outras-taxas':
-        return <OutrasTaxasManager />;
-      case 'profile':
-        return <ProfileManager />;
-      default:
-        return (
-          <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400">
-            Módulo {activeTab} em construção
-          </div>
-        );
-    }
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        {(() => {
+          switch (activeTab) {
+            case 'home':
+              return <Home setActiveTab={setActiveTab} />;
+            case 'credits':
+              return <CreditsManager />;
+            case 'selic':
+              return <SelicManager />;
+            case 'perdcomps':
+              return <PerdcompManager />;
+            case 'companies':
+              return <CompanyManager />;
+            case 'loans':
+              return (
+                <ErrorBoundary>
+                  <LoanManager />
+                </ErrorBoundary>
+              );
+            case 'installments':
+              return <InstallmentManager />;
+            case 'leases':
+              return <LeaseManager />;
+            case 'exchange':
+              return <ExchangeRateManager />;
+            case 'outras-taxas':
+              return <OutrasTaxasManager />;
+            case 'profile':
+              return <ProfileManager />;
+            default:
+              return (
+                <div className="flex items-center justify-center h-full text-slate-500 dark:text-slate-400">
+                  Módulo {activeTab} em construção
+                </div>
+              );
+          }
+        })()}
+      </Suspense>
+    );
   };
 
   return (
@@ -148,17 +162,24 @@ function AppContent() {
     );
   }
 
+
   if (!user) {
     if (currentView === 'register') {
-      return <Register onLoginClick={() => setCurrentView('login')} />;
+      return (
+        <Suspense fallback={<div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-irko-blue"></div></div>}>
+          <Register onLoginClick={() => setCurrentView('login')} />
+        </Suspense>
+      );
     }
-    return <Login onRegisterClick={() => setCurrentView('register')} />;
+    return (
+      <Suspense fallback={<div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-irko-blue"></div></div>}>
+        <Login onRegisterClick={() => setCurrentView('register')} />
+      </Suspense>
+    );
   }
 
   return <Dashboard />;
 }
-
-import { ToastProvider } from './context/ToastContext';
 
 function App() {
   return (
