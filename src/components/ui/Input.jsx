@@ -1,6 +1,13 @@
 import { forwardRef } from 'react';
 import { cn } from '../../utils/cn';
 
+/**
+ * Reusable Input component with optional icon.
+ * @param {Object} props
+ * @param {string} [props.className]
+ * @param {string} [props.type]
+ * @param {import('lucide-react').LucideIcon} [props.icon]
+ */
 const Input = forwardRef(({ className, type, icon: Icon, ...props }, ref) => {
     return (
         <div className="relative w-full">

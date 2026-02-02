@@ -19,10 +19,19 @@ const sizes = {
     iconSm: 'h-7 w-7 p-1 flex items-center justify-center'
 };
 
+/**
+ * Reusable Button component with 6 distinct variants and 5 sizes.
+ * @param {Object} props
+ * @param {'primary' | 'secondary' | 'danger' | 'ghost' | 'success' | 'link'} [props.variant='primary']
+ * @param {'sm' | 'md' | 'lg' | 'icon' | 'iconSm'} [props.size='md']
+ * @param {'button' | 'submit' | 'reset'} [props.type='button']
+ * @param {string} [props.className]
+ */
 const Button = forwardRef(({
     className,
     variant = 'primary',
     size = 'md',
+    type = 'button',
     children,
     ...props
 }, ref) => {
@@ -30,6 +39,7 @@ const Button = forwardRef(({
     return (
         <button
             ref={ref}
+            type={type}
             className={cn(
                 'inline-flex items-center justify-center rounded-xl font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-irko-orange disabled:pointer-events-none disabled:opacity-50',
                 variants[variant],

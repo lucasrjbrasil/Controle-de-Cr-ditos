@@ -181,29 +181,42 @@ function AppContent() {
   return <Dashboard />;
 }
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60000, // 1 minute
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
 function App() {
   return (
-    <ThemeProvider>
-      <ErrorBoundary>
-        <NotificationProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <CreditsProvider>
-                <PerdcompProvider>
-                  <CompanyProvider>
-                    <LoanProvider>
-                      <InstallmentProvider>
-                        <AppContent />
-                      </InstallmentProvider>
-                    </LoanProvider>
-                  </CompanyProvider>
-                </PerdcompProvider>
-              </CreditsProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </NotificationProvider>
-      </ErrorBoundary>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <ErrorBoundary>
+          <NotificationProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <CreditsProvider>
+                  <PerdcompProvider>
+                    <CompanyProvider>
+                      <LoanProvider>
+                        <InstallmentProvider>
+                          <AppContent />
+                        </InstallmentProvider>
+                      </LoanProvider>
+                    </CompanyProvider>
+                  </PerdcompProvider>
+                </CreditsProvider>
+              </AuthProvider>
+            </ToastProvider>
+          </NotificationProvider>
+        </ErrorBoundary>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

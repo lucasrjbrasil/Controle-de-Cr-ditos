@@ -15,19 +15,23 @@ const maxWidthClasses = {
 };
 
 /**
- * Reusable Modal component that handles:
- * - Backdrop blur and overlay
- * - Responsive width and max-height
- * - Scrollable content area
- * - Header and clean close button
- * - Keyboard (Esc) support
+ * Reusable Modal component that handles backdrop, responsive width, and accessibility.
+ * 
+ * @param {Object} props
+ * @param {boolean} [props.isOpen=true] - Controls visibility
+ * @param {() => void} props.onClose - Function to close the modal
+ * @param {string} [props.title] - Modal title shown in header
+ * @param {React.ReactNode} props.children - Modal content
+ * @param {'sm'|'md'|'lg'|'xl'|'2xl'|'3xl'|'4xl'|'5xl'|'full'} [props.maxWidth='2xl'] - Responsive width control
+ * @param {string} [props.description] - Helper text below title
+ * @param {React.ReactNode} [props.headerAction] - Optional action element in header
  */
 export default function Modal({
     isOpen = true,
     onClose,
     title,
     children,
-    maxWidth = '2xl', // sm, md, lg, xl, 2xl, 3xl, 4xl, 5xl, full
+    maxWidth = '2xl',
     description,
     headerAction
 }) {
