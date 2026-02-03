@@ -75,6 +75,13 @@ export default function UploadPerdcompModal({ onClose, onSuccess }) {
         let successCount = 0;
         let errors = [];
 
+        const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+        if (!webhookUrl) {
+            toast.error('Erro de configuração: URL do webhook N8N não definida.');
+            onClose();
+            return;
+        }
+
         try {
             // Process files sequentially to respect n8n individual file requirement
             // We could do parallel too, but sequential is safer for order and rate limits if any
@@ -92,7 +99,7 @@ export default function UploadPerdcompModal({ onClose, onSuccess }) {
                 formData.append('data', file); // n8n webhook binary property
 
                 try {
-                    const response = await fetch(import.meta.env.VITE_N8N_WEBHOOK_URL, {
+                    const response = await fetch(webhookUrl, {
                         method: 'POST',
                         body: formData
                     });
